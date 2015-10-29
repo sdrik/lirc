@@ -23,12 +23,18 @@
 #include "lirc/lirc_log.h"
 #include "util.h"
 
+#ifdef DARWIN
+#define gid_type int
+#else
+#define gid_type gid_t
+#endif
+
 
 const char* drop_sudo_root(int (*set_some_uid)(uid_t))
 {
 	struct passwd* pw;
 	char* user;
-	gid_t groups[32];
+	gid_type groups[32];
 	int group_cnt = sizeof(groups)/sizeof(gid_t);
 	char groupnames[256] = {0};
 	char buff[12];
