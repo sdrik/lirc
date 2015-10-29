@@ -5,6 +5,10 @@ AM_CPPFLAGS             = -I$(top_srcdir) -I$(top_srcdir)/lib -Wall
 AM_CPPFLAGS             += -Wp,-D_FORTIFY_SOURCE=2
 AM_LDFLAGS              = -lpthread $(SYSTEMD_LIBS)
 
+if DARWIN
+AM_CPPFLAGS             += -DDARWIN
+endif
+
 CLEANFILES              = *~
 
 varrundir               = $(localstatedir)/run
