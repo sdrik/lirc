@@ -7,6 +7,10 @@ AM_CPPFLAGS             = -I$(top_srcdir)/lib -I$(top_srcdir) @X_CFLAGS@
 AM_CPPFLAGS             += -g -Wall -Wp,-D_FORTIFY_SOURCE=2
 AM_LDFLAGS              =  -L../lib -llirc -llirc_client -ldl
 
+if DARWIN
+AM_CPPFLAGS             += -DDARWIN
+endif
+
 if NEED_PYTHON3
 BUILT_SOURCES           = python3
 endif
@@ -23,7 +27,6 @@ sbin_PROGRAMS           = lirc-lsplugins
 bin_PROGRAMS            = ircat \
                           irexec \
                           irpipe \
-                          irpty \
                           irrecord \
                           irsend \
                           irsimreceive \
@@ -33,6 +36,10 @@ bin_PROGRAMS            = ircat \
                           lirc-lsremotes \
                           mode2 \
                           @x_progs@
+
+if !DARWIN
+bin_PROGRAMS            += irpty
+endif
 
 ## Simple programs
 irw_SOURCES             = irw.cpp
@@ -104,7 +111,8 @@ python3:
 	chmod 755 $@
 
 install-exec-hook:
-	$(SED) -i 's/@version@/$(VERSION)/' $(DESTDIR)$(bindir)/lirc-config-tool
+	$(SED) -i -e 's/@version@/$(VERSION)/' \
+	    $(DESTDIR)$(bindir)/lirc-config-tool
 	rm -f $(DESTDIR)/$(bindir)/lirc-setup
 	$(srcdir)/make_rel_symlink.py \
 	    $(DESTDIR)/$(pkgpythondir)/lirc-setup \

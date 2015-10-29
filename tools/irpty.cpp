@@ -34,8 +34,8 @@
 #include <unistd.h>
 
 #ifdef HAVE_FORKPTY
-#if defined __APPLE__ || defined __NetBSD__
-#include <util.h>
+#if defined __APPLE__ || defined __NetBSD__ || defined DARWIN
+#include </usr/include/util.h>
 #else
 #if defined __FreeBSD__
 #include <libutil.h>
@@ -48,8 +48,6 @@
 #include "lirc_client.h"
 
 #define BUFFSIZE 512
-
-const char* progname = "irpty";
 
 struct lirc_config* lconfig;
 
@@ -331,7 +329,7 @@ int main(int argc, char* argv[])
 			printf("\t -v --verbose \t\tverbose mode\n");
 			return EXIT_SUCCESS;
 		case 'V':
-			printf("%s %s\n", progname, VERSION);
+			printf("irpty %s\n", VERSION);
 			return EXIT_SUCCESS;
 
 		case 'e':

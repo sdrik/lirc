@@ -114,7 +114,7 @@ $(generated_html): $(html_sources) docpage.xsl driver-toc.xsl
 	@mkdir html 2>/dev/null || :
 	xsltproc --html docpage.xsl \
 	    $$(echo $(srcdir)/$@ | $(SED) 's|html/|html-source/|') > $@
-	$(SED) -i "s/@version@/$(VERSION)/" $@
+	$(SED) -i -e "s/@version@/$(VERSION)/" $@
 
 $(manpage_html): $(nodist_man_MANS) $(srcdir)/manpage.xsl
 	@mkdir man-html 2>/dev/null || :

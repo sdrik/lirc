@@ -58,9 +58,6 @@ static char path[256] = {0};
 /** Run shell command line in isolated process using double fork(). */
 static void run_command(const char* cmd)
 {
-	char* const vp[] = {
-		strdupa(SH_PATH), strdupa("-c"), strdupa(cmd), NULL
-	};
 	pid_t pid1;
 	pid_t pid2;
 
@@ -78,6 +75,11 @@ static void run_command(const char* cmd)
 		}
 		if (pid2 == 0) {
 			logprintf(LIRC_DEBUG, "Execing command \"%s\"", cmd);
+			char* const vp[] = {strdup(SH_PATH),
+			      strdup("-c"),
+			      strdup(cmd),
+			      NULL
+			};
 			execvp(SH_PATH, vp);
 			/* not reached */
 			logperror(LIRC_ERROR, "execvp failed");
