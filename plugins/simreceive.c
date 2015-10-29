@@ -36,7 +36,7 @@ static char* default_rec(struct ir_remote* remotes);
 static int default_ioctl(unsigned int cmd, void* arg);
 static lirc_t default_readdata(lirc_t timeout);
 
-static const const struct driver hw_simreceive = {
+static const struct driver hw_simreceive = {
 	.name		= "simreceive",
 	.device		= LIRC_DRIVER_DEVICE,
 	.features	= 0,
