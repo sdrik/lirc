@@ -152,20 +152,13 @@ void flushhw(void)
 		;
 }
 
-static uid_t getresuid_uid(void)
-{
-	uid_t ruid, euid, suid;
-
-	getresuid(&ruid, &euid, &suid);
-	return suid;
-}
 
 /** Reset the hardware. Return 1 on OK, else 0 and possibly closes driver. */
-int resethw(void)
+int resethw(int started_as_root)
 {
 	int flags;
 
-	if (getresuid_uid() == 0)
+	if (started_as_root)
 		if (seteuid(0) == -1)
 			logprintf(LIRC_ERROR, "Cannot reset root uid");
 	if (curr_driver->deinit_func)
@@ -222,6 +215,7 @@ void toggle_state_init(struct toggle_state* state)
 void button_state_init(struct button_state* state)
 {
 	memset(state, 0, sizeof(struct button_state));
+	state->started_as_root = geteuid() == 0;
 	state->retval = EXIT_SUCCESS;
 }
 
@@ -1934,7 +1928,7 @@ enum button_status record_buttons(struct button_state*	btn_state,
 				}
 			}
 			if (!decode_ok) {
-				if (!resethw()) {
+				if (!resethw(btn_state->started_as_root)) {
 					btn_state_set_message(
 						btn_state,
 						"Could not reset hardware.\n");
@@ -2033,7 +2027,7 @@ enum button_status record_buttons(struct button_state*	btn_state,
 	case STS_BTN_RECORD_DONE:
 		if (is_raw(&remote))
 			return STS_BTN_ALL_DONE;
-		if (!resethw()) {
+		if (!resethw(btn_state->started_as_root)) {
 			btn_state_set_message(btn_state,
 					      "Could not reset hardware.");
 			return STS_BTN_HARD_ERROR;

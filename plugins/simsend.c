@@ -36,7 +36,7 @@ static int default_ioctl(unsigned int cmd, void* arg);
 static lirc_t default_readdata(lirc_t timeout);
 
 
-static const const struct driver hw_simsend = {
+static const struct driver hw_simsend = {
 	.name		= "simsend",
 	.device		= LIRC_DRIVER_DEVICE,
 	.features	= 0,

@@ -244,6 +244,7 @@ struct button_state {
 	unsigned int	count;
 	int		flag;
 	int		no_data;
+	int             started_as_root;  /** Started with euid == 0? */
 };
 
 

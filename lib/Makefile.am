@@ -10,6 +10,10 @@ BUILT_SOURCES               = lirc/input_map.inc
 
 AM_CPPFLAGS                 = -I$(top_srcdir) -Wall -Wp,-D_FORTIFY_SOURCE=2
 
+if DARWIN
+AM_CPPFLAGS                 += -DDARWIN
+endif
+
 lib_LTLIBRARIES             = liblirc.la liblirc_client.la liblirc_driver.la \
                               libirrecord.la
 

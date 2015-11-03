@@ -133,6 +133,9 @@ devinput_la_SOURCES         = devinput.c
 
 plugin_LTLIBRARIES          += zotac.la
 zotac_la_SOURCES            = zotac.c
+
+plugin_LTLIBRARIES          += mplay.la
+mplay_la_SOURCES            = mplay.c
 endif
 
 $(srcdir)/pluginlist.am:

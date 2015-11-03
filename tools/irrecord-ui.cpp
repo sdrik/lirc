@@ -237,18 +237,6 @@ static int ncode_list_for_each(int (*func)(struct ir_ncode*, void*),
 }
 
 
-/** getresuid wrapper, returns saved set-uid. */
-static uid_t getresuid_uid(void)
-{
-	uid_t ruid, euid, suid;
-
-	getresuid(&ruid, &euid, &suid);
-	return suid;
-}
-
-
-
-
 /** Set up default values for all command line options + filename. */
 static void add_defaults(void)
 {
@@ -385,7 +373,8 @@ static void parse_options(int argc, char** const argv)
 
 
 /** Check options, possibly run simple ones. Returns status. */
-static enum init_status init(struct opts* opts, struct main_state* state)
+static enum init_status
+init(struct opts* opts, struct main_state* state, int started_as_root)
 {
 	char filename_new[256];
 	char logpath[256];
@@ -481,7 +470,7 @@ static enum init_status init(struct opts* opts, struct main_state* state)
 	} else {
 		opts->backupfile = NULL;
 	}
-	if (getresuid_uid() == 0) {
+	if (started_as_root) {
 		if (seteuid(0) == -1)
 			logprintf(LIRC_ERROR, "Cannot reset root uid");
 	}
@@ -599,11 +588,12 @@ static void do_get_toggle_bit_mask(struct ir_remote* remote,
 
 
 /** View part of init: run init() and handle results. Returns or exits. */
-static void do_init(struct opts* opts, struct main_state* state)
+static void
+do_init(struct opts* opts, struct main_state* state, int started_as_root)
 {
 	enum init_status sts;
 
-	sts = init(opts, state);
+	sts = init(opts, state, started_as_root);
 	switch (sts) {
 	case STS_INIT_BAD_DRIVER:
 		fprintf(stderr, "Driver `%s' not found", opts->driver);
@@ -1102,6 +1092,7 @@ int main(int argc, char** argv)
 {
 	struct opts opts = {0};
 	struct main_state state = {0};
+	int started_as_root = 0;
 	int r = 1;
 
 	get_options(argc, argv, argv[optind], &opts);
@@ -1111,9 +1102,11 @@ int main(int argc, char** argv)
 	}
 	get_commandline(argc, argv,
 			opts.commandline, sizeof(opts.commandline));
-	if (geteuid() == 0)
+	if (geteuid() == 0){
+		started_as_root = 1;
 		drop_root_cli(seteuid);
-	do_init(&opts, &state);
+	}
+	do_init(&opts, &state, started_as_root);
 
 	puts(MSG_WELCOME);
 	if (curr_driver->name && strcmp(curr_driver->name, "devinput") == 0)
