@@ -2,7 +2,7 @@ Source: lirc
 Section: misc
 Priority: optional
 Maintainer: Alec Leamas <leamas.alec@gmail.com>
-Vcs-Git: git://git.code.sf.net/p/lirc/git lirc-git -b debian
+Vcs-Git: git://git.code.sf.net/p/lirc/git -b debian
 Vcs-Browser: https://sourceforge.net/p/lirc/git/ci/debian/tree/
 Build-Depends:
  autotools-dev,
@@ -12,10 +12,10 @@ Build-Depends:
  dh-autoreconf,
  dh-systemd,
  doxygen,
- libasound2-dev [!hurd-i386 !kfreebsd-i386 !kfreebsd-amd64],
+ libasound2-dev [linux-any kfreebsd-any],
  libice-dev,
  libsm-dev,
- libusb-1.0-0-dev [!hurd-i386],
+ libusb-1.0-0-dev [linux-any],
  libx11-dev,
  libxt-dev,
  module-init-tools,
@@ -75,6 +75,12 @@ Package: liblirc0
 Architecture: any
 Section: libs
 Homepage: http://www.lirc.org
+Provides: liblircclient0
+Conflicts: liblircclient0 (<< 0.9.1)
+Replaces:
+ liblircclient (<< 0.9.1),
+ lirc (<< 0.9.1)
+Breaks: lirc (<< 0.9.1)
 Depends:
  ${misc:Depends},
  ${shlibs:Depends},
@@ -91,6 +97,9 @@ Package: liblirc-dev
 Architecture: any
 Section: libdevel
 Homepage: http://www.lirc.org
+Provides: liblircclient-dev
+Conflicts: liblircclient-dev (<< 0.9.1)
+Replaces: liblircclient-dev (<< 0.9.1)
 Depends:
  liblirc0 (= ${binary:Version}),
  ${misc:Depends},
@@ -108,6 +117,7 @@ Description: infra-red remote control support
 Package: lirc-x
 Architecture: any
 Depends:
+ liblirc0 (= ${binary:Version}),
  lirc (= ${binary:Version}),
  ${shlibs:Depends},
  ${misc:Depends}
