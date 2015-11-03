@@ -58,7 +58,7 @@ uninstall-hook:
 	       $(DESTDIR)/$(pkgpythondir) \
 	       $(DESTDIR)/$(pkgdatadir)/contrib
 
-dist-hook: ChangeLog fix-version
+dist-hook: ChangeLog  fix-version
 	cp -ar $(srcdir)/contrib $(distdir)
 
 fix-version: .phony
@@ -88,5 +88,16 @@ devinput.lircd.conf:
 	echo "# Re-generate for current kernel using lirc-make-devinput" >> $@
 	echo '#' >> $@
 	$(srcdir)/tools/lirc-make-devinput >> $@
+
+debian-pkg:
+	test -f lirc-$(VERSION).tar.gz || $(MAKE) dist
+	test -d debian-pkg && rm -rf debian-pkg; mkdir debian-pkg
+	cp lirc-$(VERSION).tar.gz \
+	     debian-pkg/lirc_$(VERSION).orig.tar.gz
+	cd debian-pkg && tar xf lirc*tar.gz
+	cp -ar debian  debian-pkg/lirc-*
+	cd debian-pkg/lirc-* && debuild -S -us -uc
+	rm -rf debian-pkg/lirc-*
+
 
 .phony:
