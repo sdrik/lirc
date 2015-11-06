@@ -1,7 +1,8 @@
 Source: lirc
 Section: misc
 Priority: optional
-Maintainer: Alec Leamas <leamas.alec@gmail.com>
+Homepage: http://sf.net/p/lirc
+Maintainer:  lirc Maintainer Team <pkg-lirc-maint@lists.alioth.debian.org>
 Vcs-Git: git://git.code.sf.net/p/lirc/git -b debian
 Vcs-Browser: https://sourceforge.net/p/lirc/git/ci/debian/tree/
 Build-Depends:
