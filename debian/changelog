@@ -2,19 +2,19 @@ lirc (0.9.4-devel-0.1) unstable; urgency=medium
 
   * Non-maintainer upload.
   * First shot on major upstream updates.
-    - Re-packaged based on new dh primitives.
+    - Re-packaged from scratch based on new dh primitives.
     - Thanks for help on debian-mentors!
   * New upstream release 0.9.4
     - Release 0.9.1 .. 0.9.3 was never packaged.
     - Add upgrade path Replaces:, Breaks: and Provides:.
-    - Closes "Not updated to last version" (#777199).
-    - Closes "Default device for mode2 is /dev/lirc" (#702140).
-    - Closes "/var/run/lirc contents disappear..." (#676343).
-    - Closes "lircrcd segfaults" (#780062).
-    - Closes "'/etc/init.d/lirc restart' is broken" (#782091).
-    - Closes "Prompting due to modified conffiles..." (#655969).
+    - Fixes "Not updated to last version" (Closes: #777199).
+    - Fixes "Default device for mode2 is /dev/lirc" (Closes: #702140).
+    - Fixes "/var/run/lirc contents disappear..." (Closes: #676343).
+    - Fixes "lircrcd segfaults" (Closes: #780062).
+    - Fixes "'/etc/init.d/lirc restart' is broken" (Closes: #782091).
+    - Fixes "Prompting due to modified conffiles..." (Closes: #655969).
   * Update compiler flags: -Wl,as-needed + hardening
-  * Avoide negative architecture deps like [!hurd] (Closes:# 634807)
+  * Avoide negative architecture deps like [!hurd] (Closes: #634807)
   * Handling upstream move of debian directory to separate branch.
   * Handling upstream simplification of kerneldrivers.yaml, drop
     0008-add-kerneldrivers.patch.

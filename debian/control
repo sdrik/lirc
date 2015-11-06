@@ -34,8 +34,7 @@ Standards-Version: 3.9.6
 
 
 Package: lirc
-Section: misc
-Homepage: http://www.lirc.org
+Homepage: http://sf.net/p/lirc
 Architecture: any
 Depends:
  liblirc0 (= ${binary:Version}),
@@ -59,7 +58,7 @@ Description: Infra-red remote control support - daemons and utils
 Package: lirc-doc
 Architecture: all
 Section: doc
-Homepage: http://www.lirc.org
+Homepage: http://sf.net/p/lirc
 Depends:
  ${misc:Depends},
  lsb-base
@@ -74,7 +73,7 @@ Description: Infra-red remote control support - website and manual docs
 Package: liblirc0
 Architecture: any
 Section: libs
-Homepage: http://www.lirc.org
+Homepage: http://sf.net/p/lirc
 Provides: liblircclient0
 Conflicts: liblircclient0 (<< 0.9.1)
 Replaces:
@@ -96,7 +95,7 @@ Description: Infra-red remote control support - Run-time libraries
 Package: liblirc-dev
 Architecture: any
 Section: libdevel
-Homepage: http://www.lirc.org
+Homepage: http://sf.net/p/lirc
 Provides: liblircclient-dev
 Conflicts: liblircclient-dev (<< 0.9.1)
 Replaces: liblircclient-dev (<< 0.9.1)
