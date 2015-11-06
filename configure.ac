@@ -137,9 +137,6 @@ AH_TEMPLATE([HAVE_ALSA_SB_RC],
 AH_TEMPLATE([HAVE_FORKPTY],
         [Define if forkpty is available])
 
-AH_TEMPLATE([HAVE_IGUANAIR],
-        [Define if the iguanaIR library is installed])
-
 AH_TEMPLATE([HAVE_FTDI],
         [Define if the libftdi library is installed])
 
@@ -181,6 +178,9 @@ AH_TEMPLATE([LIRC_LOCKDIR],
 
 AH_TEMPLATE([SH_PATH], [Path to shell, usually /bin/sh or /usr/bin/sh])
 
+AH_TEMPLATE([HAVE_MONOTONIC_RAW],
+        [Define if clock_gettime supports TIMER_MONOTONIC_RAW])
+
 
 AC_CHECK_HEADER(usb.h,[
   AC_DEFINE(HAVE_LIBUSB)
@@ -200,12 +200,6 @@ if test -n "$FTDI_LIBS"; then
 else
   AM_CONDITIONAL([BUILD_FTDI],[false])
 fi
-
-AC_CHECK_HEADER(iguanaIR.h,[
-  AM_CONDITIONAL([BUILD_IGUANAIR],[true])
-  ],[
-  AM_CONDITIONAL([BUILD_IGUANAIR],[false])]
-)
 
 dnl audio driver requires PortAudio library installed and some linker flags
 AC_CHECK_HEADERS(portaudio.h,[
@@ -307,6 +301,21 @@ if test -n "$SYSTEMD_LIBS"; then
     AC_DEFINE(HAVE_SYSTEMD)
 fi
 SYSTEMD_SYSTEMUNITDIR
+
+AC_COMPILE_IFELSE([
+  AC_LANG_SOURCE([
+    #include <time.h>
+    int main(int argc, char** argv)
+    {
+	struct timespec res;
+	clock_gettime(CLOCK_MONOTONIC_RAW, &res);
+    }
+    ])
+  ],
+  [AC_DEFINE(HAVE_MONOTONIC_RAW)],
+  [true]
+)
+
 
 AC_MSG_NOTICE([Building all userspace drivers.])
 
