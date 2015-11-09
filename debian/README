@@ -1,2 +1,78 @@
 The debian packaging files has been moved to the separate branch
 'debian' according to established debian workflows.
+
+0.9.4 disruptive update
+=======================
+
+The configuration is so much changed that updating  from 0.9.0 requires
+manual intervention. This could be done using the update scripts or as
+a completely manual process.
+
+The outcome of the process is up to three different systemd services:
+lircd.socket, irexec.service and lircmd.service. There is no counterpart
+to the 0.9.0 'lirc' service which covers all of these.
+
+Using the update script
+-----------------------
+
+If you want to make a non-destructive test use
+
+    $ cp -ar /etc/lirc .
+    $ LIRC_DRYRUN=1 /usr/share/lirc/lirc-old2new ./lirc
+
+This will update the files in ./lirc and also just echo the systemctl
+commands instead of executing them. To perform the update use:
+
+    $ sudo /usr/share/lirc/lirc-old2new
+
+This will use the files in /etc/lirc, updating lirc_options.conf using data
+in hardware conf. It will also start and enable lircd.service, lircmd.service
+and irexec.service if the corresponding services was enabled in 0.9.0.
+
+After running script check results using
+
+    $ cat /etc/lirc/lirc_options.conf
+    $ systemctl status lircd.socket
+    $ systemctl status lircmd.service
+    $ systemctl status irexec.service
+
+
+Manual updating
+---------------
+
+The manual process is not that hard. The first step is to update
+lirc_options.conf using the values in hardware.conf. Usually, this is just
+'device' and 'driver' but you might have a different setup.
+
+The [modinit] section contains a single value 'code = '. This is code which
+is run by lircd-setup as root before lircd is started. Typical use is
+e. g., modprobe(1) and setserial(1) invocations. If in doubts, leave this
+as-is.
+
+In the default debian setup lircd runs as root, keeping the old defaults.
+Refer to upstream documentation on how to run it as a regular user.
+
+When the lirc_options is in shape, enable the different services. Note
+that most users only run one or two of these.
+
+*lircd* requires /etc/lirc/lircd.conf. In an upgrade scenario, this is
+already in place and you could enable, start and check lircd using:
+
+    $ sudo enable lircd.socket
+    $ sudo start lircd.socket
+    $ systemctl status lircd.socket
+
+*irexec* requires /etc/lirc/irexec.lircrc. In an upgrade scenario you should
+have the old configuration file lircrc available if irexec is used. Do:
+
+    $ sudo cp /etc/lirc/lircrc /etc/lirc/irexec.lircrc
+    $ sudo enable irexec.service
+    $ sudo start irexec.service
+    $ systemctl status irexec.service
+
+*lircmd* requires lircmd.conf. In an upgrade scenario this should already
+be in place if this service is used. Enable, start and check using
+
+    $ sudo enable lircmd.service
+    $ sudo start lircmd.service
+    $ systemctl status lircmd.service

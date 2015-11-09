@@ -31,6 +31,8 @@ override_dh_auto_install:
 	mkdir -p debian/tmp/usr/lib/tmpfiles.d
 	echo "d /var/run/lirc  0777  root  root  10d" \
 	    > debian/tmp/usr/lib/tmpfiles.d/lirc.conf
+	# Temporary postinstall 0.9.4 script.
+	cp debian/lirc-old2new debian/tmp/usr/share/lirc
 	## (Don't) use system library instead of bundled jquery.js.
 	## See lintian overrides
 	# rm -f debian/tmp/usr/share/doc/lirc/lirc.org/api-docs/html/jquery.js

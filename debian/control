@@ -2,7 +2,8 @@ Source: lirc
 Section: misc
 Priority: optional
 Homepage: http://sf.net/p/lirc
-Maintainer:  lirc Maintainer Team <pkg-lirc-maint@lists.alioth.debian.org>
+Maintainer: lirc Maintainer Team <pkg-lirc-maint@lists.alioth.debian.org>
+Uploaders: Stefan Lippers-Hollmann <s.l-h@gmx.de>
 Vcs-Git: git://git.code.sf.net/p/lirc/git -b debian
 Vcs-Browser: https://sourceforge.net/p/lirc/git/ci/debian/tree/
 Build-Depends:
@@ -19,6 +20,7 @@ Build-Depends:
  libusb-1.0-0-dev [linux-any],
  libx11-dev,
  libxt-dev,
+ logcheck,
  module-init-tools,
  man2html-base,
  pkg-config,
@@ -32,9 +34,7 @@ Build-Depends:
 Build-Conflicts: libirman
 Standards-Version: 3.9.6
 
-
 Package: lirc
-Homepage: http://sf.net/p/lirc
 Architecture: any
 Depends:
  liblirc0 (= ${binary:Version}),
@@ -46,8 +46,10 @@ Suggests:
  lirc-x,
  setserial,
  ir-keytable
-Breaks: lirc-modules-source (<<0.9~),
- lirc-svga (<<0.9~)
+Breaks:
+ lirc-modules-source (<<0.9~),
+ lirc-svga (<<0.9~),
+ inputlirc (<<19)
 Description: Infra-red remote control support - daemons and utils
  LIRC stands for 'Linux Infra-red Remote Control'.
  .
@@ -58,11 +60,14 @@ Description: Infra-red remote control support - daemons and utils
 Package: lirc-doc
 Architecture: all
 Section: doc
-Homepage: http://sf.net/p/lirc
 Depends:
  ${misc:Depends},
  lsb-base
 # libjs-jquery,    (See lintian overrides)
+Replaces:
+ lirc (<< 0.9.1)
+Breaks:
+ lirc (<< 0.9.1)
 Description: Infra-red remote control support - website and manual docs
  LIRC stands for 'Linux Infra-red Remote Control'.
  .
@@ -73,13 +78,14 @@ Description: Infra-red remote control support - website and manual docs
 Package: liblirc0
 Architecture: any
 Section: libs
-Homepage: http://sf.net/p/lirc
 Provides: liblircclient0
-Conflicts: liblircclient0 (<< 0.9.1)
 Replaces:
  liblircclient (<< 0.9.1),
  lirc (<< 0.9.1)
-Breaks: lirc (<< 0.9.1)
+Conflicts:
+ liblircclient (<< 0.9.1)
+Breaks:
+ lirc (<< 0.9.1)
 Depends:
  ${misc:Depends},
  ${shlibs:Depends},
@@ -95,7 +101,6 @@ Description: Infra-red remote control support - Run-time libraries
 Package: liblirc-dev
 Architecture: any
 Section: libdevel
-Homepage: http://sf.net/p/lirc
 Provides: liblircclient-dev
 Conflicts: liblircclient-dev (<< 0.9.1)
 Replaces: liblircclient-dev (<< 0.9.1)

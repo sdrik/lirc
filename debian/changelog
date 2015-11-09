@@ -6,18 +6,26 @@ lirc (0.9.4-devel-0.1) unstable; urgency=medium
     - Thanks for help on debian-mentors!
   * New upstream release 0.9.4
     - Release 0.9.1 .. 0.9.3 was never packaged.
-    - Add upgrade path Replaces:, Breaks: and Provides:.
+    - Old 'lirc' service split into separate systemd services:
+      lircd.service, lircmd.service and irexec.service.
+    - New package structure: lirc, lirc-doc, liblirc0, liblirc-dev with
+      corresponding upgrade path dependencies.
     - Fixes "Not updated to last version" (Closes: #777199).
     - Fixes "Default device for mode2 is /dev/lirc" (Closes: #702140).
     - Fixes "/var/run/lirc contents disappear..." (Closes: #676343).
     - Fixes "lircrcd segfaults" (Closes: #780062).
     - Fixes "'/etc/init.d/lirc restart' is broken" (Closes: #782091).
     - Fixes "Prompting due to modified conffiles..." (Closes: #655969).
+    - Fixes "LIRC installs bad udev rule" (Closes: #804397).
+  * Old lircd output socket link /dev/lirc dropped. Use /var/run/lirc/lircd.
   * Update compiler flags: -Wl,as-needed + hardening
-  * Avoide negative architecture deps like [!hurd] (Closes: #634807)
-  * Handling upstream move of debian directory to separate branch.
-  * Handling upstream simplification of kerneldrivers.yaml, drop
-    0008-add-kerneldrivers.patch.
+    [Stefan Lippers-Hollmann]
+  * Avoid negative architecture deps like [!hurd] (Closes: #634807)
+    [Stefan Lippers-Hollmann]
+  * Handling upstream modifications
+    - Move of debian directory to separate branch.
+    - Simplification of kerneldrivers.yaml, drop
+      0008-add-kerneldrivers.patch.
   * Add patch 0007-tools-remove-configs-symlink.patch + explicit link
     to walk around #801719.
   * Changing Vcs-* headers to point to upstream packaging branch.
