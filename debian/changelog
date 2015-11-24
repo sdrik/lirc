@@ -1,4 +1,4 @@
-lirc (0.9.4-devel-0.1) unstable; urgency=medium
+lirc (0.9.4-devel-0.1) experimental; urgency=medium
 
   * Non-maintainer upload.
   * First shot on major upstream updates.
