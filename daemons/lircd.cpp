@@ -2121,6 +2121,15 @@ void loop(void)
 	char* message;
 
 	logprintf(LIRC_NOTICE, "lircd(%s) ready, using %s", curr_driver->name, lircdfile);
+	if(useuinput) {
+		// Don't wait for client to connect when using uinput (#161)
+		if (curr_driver->init_func) {
+			if (!curr_driver->init_func()) {
+				logprintf(LIRC_WARNING,
+					  "Failed to initialize hardware");
+			}
+		}
+	}
 	while (1) {
 		(void)mywaitfordata(0);
 		if (!curr_driver->rec_func)
