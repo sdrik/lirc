@@ -8,7 +8,7 @@
     by the yard2 project. See driver/yard2/README.
   * New upstream debian packaging with which Debian users can create
     .deb packages. Ubuntu packages are also available in PPAs. See
-     debian/INSTALL (#137).
+     debian/README (#137).
   * New driver girs for the GIRS protocol, gives LIRC Arduino support.
     See new info in driver documentation.
   * Support for non-modulated signals added (#132).

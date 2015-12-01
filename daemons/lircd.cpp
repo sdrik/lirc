@@ -72,16 +72,10 @@
 
 #include "lirc_private.h"
 
-#ifdef DARWIN
-#define gid_type int
+#ifdef HAVE_INT_GETGROUPLIST_GROUPS
+#define lirc_gid int
 #else
-#define gid_type gid_t
-#endif
-
-#ifdef HAVE_MONOTONIC_RAW
-#define LIRC_MONOTONIC_CLOCK CLOCK_MONOTONIC_RAW
-#else
-#define LIRC_MONOTONIC_CLOCK CLOCK_MONOTONIC
+#define lirc_gid gid_t
 #endif
 
 #ifdef DARWIN
@@ -102,8 +96,6 @@ int clock_gettime(int clk_id, struct timespec *t){
 	return 0;
 }
 #endif
-
-
 
 
 /****************************************************************************
@@ -597,7 +589,7 @@ void remove_client(int fd)
 			log_info("removed client");
 
 			clin--;
-			if (!use_hw() && curr_driver->deinit_func)
+			if (!useuinput && use_hw() && curr_driver->deinit_func)
 				curr_driver->deinit_func();
 			for (; i < clin; i++)
 				clis[i] = clis[i + 1];
@@ -751,7 +743,7 @@ void drop_privileges(void)
 {
 	const char* user;
 	struct passwd* pw;
-	gid_type groups[32];
+	lirc_gid groups[32];
 	int group_cnt = sizeof(groups)/sizeof(gid_t);
 	char groupnames[256] = {0};
 	char buff[12];
@@ -1226,7 +1218,7 @@ static void schedule_repeat_timer (struct timespec* last)
 	struct timespec current;
 	struct itimerval repeat_timer;
 	gap = send_buffer_sum() + repeat_remote->min_remaining_gap;
-	clock_gettime (LIRC_MONOTONIC_CLOCK, &current);
+	clock_gettime (CLOCK_MONOTONIC, &current);
 	secs = current.tv_sec - last->tv_sec;
 	diff = 1000000 * secs + (current.tv_nsec - last->tv_nsec) / 1000;
 	usecs = (diff < gap ? gap - diff : 0);
@@ -2150,6 +2142,14 @@ void loop(void)
 	char* message;
 
 	log_notice("lircd(%s) ready, using %s", curr_driver->name, lircdfile);
+	if(useuinput) {
+		// Don't wait for client to connect when using uinput (#161)
+		if (curr_driver->init_func) {
+			if (!curr_driver->init_func()) {
+				log_warn("Failed to initialize hardware");
+			}
+		}
+	}
 	while (1) {
 		(void)mywaitfordata(0);
 		if (!curr_driver->rec_func)
