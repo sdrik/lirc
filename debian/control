@@ -3,7 +3,9 @@ Section: misc
 Priority: optional
 Homepage: http://sf.net/p/lirc
 Maintainer: lirc Maintainer Team <pkg-lirc-maint@lists.alioth.debian.org>
-Uploaders: Stefan Lippers-Hollmann <s.l-h@gmx.de>
+Uploaders:
+  Stefan Lippers-Hollmann <s.l-h@gmx.de>,
+  Alec leamas <leamas.alec@gmail.com>
 Vcs-Git: git://git.code.sf.net/p/lirc/git -b debian
 Vcs-Browser: https://sourceforge.net/p/lirc/git/ci/debian/tree/
 Build-Depends:

@@ -6,6 +6,7 @@ lirc (0.9.4-devel-0.1) experimental; urgency=medium
     - Thanks for help on debian-mentors!
   * New upstream release 0.9.4
     - Release 0.9.1 .. 0.9.3 was never packaged.
+    - This is an experimental, pre-release package.
     - Old 'lirc' service split into separate systemd services:
       lircd.service, lircmd.service and irexec.service.
     - New package structure: lirc, lirc-doc, liblirc0, liblirc-dev with
@@ -22,10 +23,6 @@ lirc (0.9.4-devel-0.1) experimental; urgency=medium
     [Stefan Lippers-Hollmann]
   * Avoid negative architecture deps like [!hurd] (Closes: #634807)
     [Stefan Lippers-Hollmann]
-  * Handling upstream modifications
-    - Move of debian directory to separate branch.
-    - Simplification of kerneldrivers.yaml, drop
-      0008-add-kerneldrivers.patch.
   * Add patch 0007-tools-remove-configs-symlink.patch + explicit link
     to walk around #801719.
   * Changing Vcs-* headers to point to upstream packaging branch.
