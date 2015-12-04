@@ -76,7 +76,7 @@ default driver and most of the applications.
 
 %package        compat
 Summary:        Compatibility package installing all lirc packages
-Obsoletes:      lirc <=  0.9.1
+Obsoletes:      lirc <=  0.9.1a
 Provides:       lirc = %{version}-%{release}
 Requires:       lirc-core%{?_isa} = %{version}-%{release}
 Requires:       lirc-config = %{version}-%{release}
