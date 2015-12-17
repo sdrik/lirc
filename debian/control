@@ -32,7 +32,7 @@ Build-Depends:
 # libjs-jquery    (See lintian overrides)
 # libftdi1-dev,   (Not available in jessie)
 #
-# See DBS #801588
+# See BTS #801588
 Build-Conflicts: libirman
 Standards-Version: 3.9.6
 

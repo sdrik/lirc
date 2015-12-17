@@ -1,4 +1,4 @@
-lirc (0.9.4-devel-0.1) experimental; urgency=medium
+lirc (0.9.4~alpha-1.1) experimental; urgency=medium
 
   * Non-maintainer upload.
   * First shot on major upstream updates.
@@ -18,6 +18,7 @@ lirc (0.9.4-devel-0.1) experimental; urgency=medium
     - Fixes "'/etc/init.d/lirc restart' is broken" (Closes: #782091).
     - Fixes "Prompting due to modified conffiles..." (Closes: #655969).
     - Fixes "LIRC installs bad udev rule" (Closes: #804397).
+  * Build conflicts with libirman, cfr: #801588.
   * Old lircd output socket link /dev/lirc dropped. Use /var/run/lirc/lircd.
   * Update compiler flags: -Wl,as-needed + hardening
     [Stefan Lippers-Hollmann]
@@ -38,12 +39,14 @@ lirc (0.9.0~pre1-1.2) unstable; urgency=medium
     (Closes: #774867)
 
  -- gregor herrmann <gregoa@debian.org>  Sat, 17 Jan 2015 19:51:55 +0100
+
 lirc (0.9.0~pre1-1.1) unstable; urgency=low
 
   * Non-maintainer upload with maintainers permission.
   * Add dh-autoreconf to fix FTBFS on ppc64el. Closes: #746505
 
  -- Andreas Barth <aba@ayous.org>  Thu, 11 Sep 2014 09:18:17 +0000
+
 lirc (0.9.0~pre1-1) unstable; urgency=low
 
   [ Sven Mueller ]

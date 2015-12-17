@@ -8,6 +8,8 @@ GIT_COMMIT      = $(shell git log -1 --pretty=format:%h || echo UNKNOWN)
 GIT_DATE        = $(shell git log -1 --pretty=format:%cd || echo UNKNOWN)
 GIT_REFS        = $(shell git log -1 --pretty=format:%d || echo UNKNOWN)
 
+DEBIAN_VERSION  = $(patsubst %-devel,%~alpha,$(VERSION))
+
 EXTRA_DIST              = README autogen.sh CONTRIBUTE.md ChangeLog
 
 DISTCLEANFILES          = configure.sh  ChangeLog paths.h
@@ -93,7 +95,7 @@ debian-pkg:
 	test -f lirc-$(VERSION).tar.gz || $(MAKE) dist
 	test -d debian-pkg && rm -rf debian-pkg; mkdir debian-pkg
 	cp lirc-$(VERSION).tar.gz \
-	     debian-pkg/lirc_$(VERSION).orig.tar.gz
+	     debian-pkg/lirc_$(DEBIAN_VERSION).orig.tar.gz
 	cd debian-pkg && tar xf lirc*tar.gz
 	cp -ar debian  debian-pkg/lirc-*
 	cd debian-pkg/lirc-* && debuild -S -us -uc

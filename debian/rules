@@ -25,7 +25,9 @@ override_dh_autoreconf:
 
 
 override_dh_auto_install:
-	$(MAKE) -j DESTDIR=$(CURDIR)/debian/tmp install
+	$(MAKE) -j DESTDIR=$(CURDIR)/debian/tmp \
+            pythondir='$$(libdir)/python$$(PYTHON_VERSION)/dist-packages' \
+	    install
 	py3clean debian/tmp
 	find debian/tmp -name *.la -delete
 	mkdir -p debian/tmp/usr/lib/tmpfiles.d
@@ -34,7 +36,10 @@ override_dh_auto_install:
 	# Temporary postinstall 0.9.4 script.
 	cp debian/lirc-old2new debian/tmp/usr/share/lirc
 	## (Don't) use system library instead of bundled jquery.js.
-	## See lintian overrides
+	## The system library is as of 2015 while the bundled is of
+	## 2011; the diff is large. Deciding to leave the bundled lib.
+	## See: https://lists.debian.org/debian-devel/2014/04/msg00645.html
+	#
 	# rm -f debian/tmp/usr/share/doc/lirc/lirc.org/api-docs/html/jquery.js
 	# ln -sf ../../../../../../javascript/jquery/jquery.js \
 	#     debian/tmp/usr/share/doc/lirc/lirc.org/api-docs/html
@@ -49,8 +54,8 @@ override_dh_python3:
 	dh_python3
 	# Debian uses .../dist-packages vs upstream .../site-packages.
 	# Preferably, this should be fixed in upstream autotools setup.
-	dh_link /usr/lib/python3/dist-packages/lirc/lirc-setup \
-	    /usr/bin/lirc-setup
+	##dh_link /usr/lib/python3/dist-packages/lirc/lirc-setup \
+	##    /usr/bin/lirc-setup
 	# Restore link nuked by 0007-tools-remove-configs-symlink.patch
 	# (Debian BTS #801719).
 	dh_link /usr/share/lirc/configs \

@@ -1,2 +1,2 @@
 version=3
-http://sf.net/lirc/lirc-(.+)\.tar\.gz
+http://sf.net/lirc/lirc-(\d.+)\.tar\.gz
