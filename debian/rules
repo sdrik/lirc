@@ -52,10 +52,6 @@ override_dh_install:
 
 override_dh_python3:
 	dh_python3
-	# Debian uses .../dist-packages vs upstream .../site-packages.
-	# Preferably, this should be fixed in upstream autotools setup.
-	##dh_link /usr/lib/python3/dist-packages/lirc/lirc-setup \
-	##    /usr/bin/lirc-setup
 	# Restore link nuked by 0007-tools-remove-configs-symlink.patch
 	# (Debian BTS #801719).
 	dh_link /usr/share/lirc/configs \
