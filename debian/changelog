@@ -18,7 +18,7 @@ lirc (0.9.4~alpha-1.1) experimental; urgency=medium
     - Fixes "'/etc/init.d/lirc restart' is broken" (Closes: #782091).
     - Fixes "Prompting due to modified conffiles..." (Closes: #655969).
     - Fixes "LIRC installs bad udev rule" (Closes: #804397).
-  * Build conflicts with libirman, cfr: #801588.
+  * The built-in irman support is moved to the lirc-drv-irman package.
   * Old lircd output socket link /dev/lirc dropped. Use /var/run/lirc/lircd.
   * Update compiler flags: -Wl,as-needed + hardening
     [Stefan Lippers-Hollmann]

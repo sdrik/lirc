@@ -32,8 +32,6 @@ Build-Depends:
 # libjs-jquery    (See lintian overrides)
 # libftdi1-dev,   (Not available in jessie)
 #
-# See BTS #801588
-Build-Conflicts: libirman
 Standards-Version: 3.9.6
 
 Package: lirc
@@ -45,6 +43,7 @@ Depends:
  ${shlibs:Depends},
  lsb-base
 Suggests:
+ lirc-drv-irman,
  lirc-x,
  setserial,
  ir-keytable
