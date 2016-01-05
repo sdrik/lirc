@@ -78,8 +78,11 @@ dist_noinst_DATA        = $(man_sources) $(html_sources) $(plugindocs)
 
 all: $(nodist_man_MANS) $(nodist_html_DATA)
 
+## Temporary fix for lirc.4l; to be removed.
+lirc_4l_fix:
+	cd $(DESTDIR)$(mandir); mv man4 man4l
 
-install-data-hook:
+install-data-hook: lirc_4l_fix
 if HAVE_DOXYGEN
 	tar -C $(DESTDIR)$(websitedir) \
 	    -xf $(DESTDIR)$(docdir)/api-docs.tar.gz && \
@@ -100,6 +103,7 @@ clean-local:
 
 uninstall-hook:
 	rm -rf $(DESTDIR)$(websitedir) $(DESTDIR)$(htmldir)
+
 
 $(abs_builddir)/driver-toc.xsl: $(plugindocs)
 	$(srcdir)/make-driver-toc.sh $(plugindocs)> $@
@@ -187,12 +191,13 @@ man_sources             += $(srcdir)/man-source/ircat.1 \
                            $(srcdir)/man-source/irtestcase.1 \
                            $(srcdir)/man-source/irw.1 \
                            $(srcdir)/man-source/lirc-config-tool.1 \
-                           $(srcdir)/man-source/lirc.4 \
+                           $(srcdir)/man-source/lirc.4l \
                            $(srcdir)/man-source/lirc-lsplugins.1 \
                            $(srcdir)/man-source/lirc-lsremotes.1 \
                            $(srcdir)/man-source/lirc-make-devinput.1 \
                            $(srcdir)/man-source/lirc-setup.1 \
                            $(srcdir)/man-source/lircd-setup.8 \
+                           $(srcdir)/man-source/lircd-uinput.8 \
                            $(srcdir)/man-source/lircd.8 \
                            $(srcdir)/man-source/lircd.conf.5 \
                            $(srcdir)/man-source/lircmd.8 \
@@ -251,13 +256,14 @@ nodist_man_MANS         += man/ircat.1 \
                            man/irtestcase.1 \
                            man/irw.1 \
                            man/lirc-config-tool.1 \
-                           man/lirc.4 \
+                           man/lirc.4l \
                            man/lirc-lsplugins.1 \
                            man/lirc-lsremotes.1 \
                            man/lirc-make-devinput.1 \
                            man/lirc-setup.1 \
                            man/lircd.8 \
                            man/lircd-setup.8 \
+                           man/lircd-uinput.8 \
                            man/lircd.conf.5 \
                            man/lircmd.8 \
                            man/lircrcd.8 \
@@ -283,6 +289,7 @@ manpage_html            += man-html/ircat.html \
                            man-html/lirc-make-devinput.html \
                            man-html/lirc-setup.html \
                            man-html/lircd-setup.html \
+                           man-html/lircd-uinput.html \
                            man-html/lircd.html \
                            man-html/lircd.conf.html \
                            man-html/lircmd.html \
