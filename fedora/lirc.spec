@@ -1,11 +1,11 @@
 %global _hardened_build 1
 
 #global released 1
-%define tag     devel
+%define tag     devel.d8990e7
 
 Name:           lirc
 Version:        0.9.4
-Release:        0.3%{?tag:.}%{?tag}%{?dist}
+Release:        0.4%{?tag:.}%{?tag}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
 %global repo    http://downloads.sourceforge.net/lirc/%{version}/
@@ -17,7 +17,6 @@ URL:            http://www.lirc.org/
 Source0:        %{?released:%{repo}}%{name}-%{version}%{?tag:-}%{?tag}.tar.gz
 Source1:        README.fedora
 Source2:        99-remote-control-lirc.rules
-Source3:        lircd.te
                 # Config only, cannot be upstreamed.
 Patch1:         0001-Changing-effective-user-default.patch
 
@@ -26,11 +25,9 @@ Buildrequires:  autoconf
 BuildRequires:  automake
 BuildRequires:  checkpolicy
 BuildRequires:  doxygen
-BuildRequires:  iguanaIR-devel
 BuildRequires:  kernel-headers
 BuildRequires:  man2html
 BuildRequires:  libftdi-devel
-BuildRequires:  libirman-devel
 BuildRequires:  libtool
 BuildRequires:  libusb-devel
 BuildRequires:  libusb1-devel
@@ -81,9 +78,7 @@ Provides:       lirc = %{version}-%{release}
 Requires:       lirc-core%{?_isa} = %{version}-%{release}
 Requires:       lirc-config = %{version}-%{release}
 Requires:       lirc-tools-gui%{?_isa} = %{version}-%{release}
-Requires:       lirc-drv-iguanaIR%{?_isa} = %{version}-%{release}
 Requires:       lirc-drv-portaudio%{?_isa} = %{version}-%{release}
-Requires:       lirc-drv-irman%{?_isa} = %{version}-%{release}
 Requires:       lirc-drv-ftdi%{?_isa} = %{version}-%{release}
 
 %description    compat
@@ -161,16 +156,6 @@ Requires:       lirc-core%{?_isa} = %{version}-%{release}
 Some seldom used X11-based tools for debugging lirc configurations.
 
 
-%package        drv-iguanaIR
-Summary:        IguanaIR LIRC User-Space Driver
-Requires:       lirc-core%{?_isa} = %{version}-%{release}
-License:        LGPLv2
-
-%description    drv-iguanaIR
-LIRC user-space driver which works together with the low-level  iguanaIR
-package, providing full-fledged support for the iguanaIR devices.
-
-
 %package        drv-portaudio
 Summary:        Portaudio LIRC User-Space Driver
 Requires:       lirc-core%{?_isa} = %{version}-%{release}
@@ -179,15 +164,6 @@ License:        LGPLv2
 %description    drv-portaudio
 LIRC user space driver which supports  a IR receiver in microphone input
 using the portaudio library.
-
-
-%package        drv-irman
-Summary:        Irman LIRC User-Space Driver
-Requires:       lirc-core%{?_isa} = %{version}-%{release}
-
-%description   drv-irman
-LIRC user-space driver which works together with the kernel, providing
-full support for the irman device.
 
 
 %package        drv-ftdi
@@ -265,15 +241,6 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 
 %files compat
 
-%files drv-iguanaIR
-%{_libdir}/lirc/plugins/iguanaIR.so
-%{_datadir}/lirc/configs/iguanaIR.conf
-
-
-%files drv-irman
-%{_libdir}/lirc/plugins/irman.so
-%{_datadir}/lirc/configs/irman.conf
-
 %files drv-portaudio
 %{_libdir}/lirc/plugins/audio.so
 %{_datadir}/lirc/configs/audio.conf
@@ -297,8 +264,6 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_mandir}/man1/lirc-setup*
 %{_datadir}/lirc/configs/*
 %{python3_sitelib}/lirc
-%exclude %{_datadir}/lirc/configs/iguanaIR.conf
-%exclude %{_datadir}/lirc/configs/irman.conf
 %exclude %{_datadir}/lirc/configs/ftdi.conf
 %exclude %{_datadir}/lirc/configs/audio.conf
 
@@ -323,18 +288,18 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %exclude %{_bindir}/lirc-config-tool
 %{_sbindir}/lirc*
 %{_libdir}/lirc/plugins
-%exclude %{_libdir}/lirc/plugins/iguanaIR.so
-%exclude %{_libdir}/lirc/plugins/irman.so
 %exclude %{_libdir}/lirc/plugins/ftdi.so
 %exclude %{_libdir}/lirc/plugins/audio.so
 %{_datadir}/lirc/
 %exclude %{_datadir}/lirc/configs/*
 %{_mandir}/man1/*ir*.1*
 %{_mandir}/man1/*mode2*.1*
-%{_mandir}/man4/lirc.*
+%{_mandir}/man4l/lirc.*
+%{_mandir}/man5/lircd.conf.*
+%{_mandir}/man5/lircrc.*
 %{_mandir}/man8/lirc*d.8*
 %{_mandir}/man8/lircd-setup.8*
-%{_mandir}/man5/lircd.conf.*
+%{_mandir}/man8/lircd-uinput.8*
 %exclude %{_mandir}/man1/lirc-config-tool*
 %exclude %{_mandir}/man1/irdb-get*
 %exclude %{_mandir}/man1/lirc-setup*
@@ -369,6 +334,10 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_udevrulesdir}/99-remote-control-lirc.rules
 
 %changelog
+* Tue Jan 05 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-0.4.devel
+- Removed lirc-drv-irman and lirc-drv-iguanair (these are now
+  maintained as separate packages)
+
 * Fri Oct 23 2015 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-0.3.devel
 - rebuilt
 - Remove upstreamed selinux stuff.
