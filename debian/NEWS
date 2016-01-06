@@ -1,4 +1,4 @@
-lirc (0.9.4~alpha-1.1) experimental; urgency=medium
+lirc (0.9.4~pre1-1.1) experimental; urgency=medium
 
    The 0.9.4 configuration needs to be manually updated.
 
@@ -24,6 +24,12 @@ lirc (0.9.4~alpha-1.1) experimental; urgency=medium
      - There is exactly one capture device (i. e., /sys/class/rc/ entry).
      - There is no need to send (i. e., to do IR blasting).
    Bottom line: lircd has a limited but sometimes working setup as shipped.
+
+   Previous lirc package installed a udev rule which autostarted lircd
+   when a new /dev/lirc* device was created, typically when connecting
+   some kind of USB devices. This rule is no longer present, so all
+   users depending on lircd needs to start the lircd.service
+   explicitly.
 
 
  -- Alec Leamas  <leamas.alec@gmail.com>  Mon, 5 Oct 2015 11:14:25 +0100

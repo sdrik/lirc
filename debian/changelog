@@ -1,4 +1,4 @@
-lirc (0.9.4~alpha-1.1) experimental; urgency=medium
+lirc (0.9.4~pre1-1.1) experimental; urgency=medium
 
   * Non-maintainer upload.
   * First shot on major upstream updates.
@@ -17,7 +17,8 @@ lirc (0.9.4~alpha-1.1) experimental; urgency=medium
     - Fixes "lircrcd segfaults" (Closes: #780062).
     - Fixes "'/etc/init.d/lirc restart' is broken" (Closes: #782091).
     - Fixes "Prompting due to modified conffiles..." (Closes: #655969).
-    - Fixes "LIRC installs bad udev rule" (Closes: #804397).
+    - Fixes "LIRC installs bad udev rule" (Closes: #804397),
+      users depending on this rule will need to explicitly start lircd.
   * The built-in irman support is moved to the lirc-drv-irman package.
   * Old lircd output socket link /dev/lirc dropped. Use /var/run/lirc/lircd.
   * Update compiler flags: -Wl,as-needed + hardening

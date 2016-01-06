@@ -8,7 +8,8 @@ GIT_COMMIT      = $(shell git log -1 --pretty=format:%h || echo UNKNOWN)
 GIT_DATE        = $(shell git log -1 --pretty=format:%cd || echo UNKNOWN)
 GIT_REFS        = $(shell git log -1 --pretty=format:%d || echo UNKNOWN)
 
-DEBIAN_VERSION  = $(patsubst %-devel,%~alpha,$(VERSION))
+##DEBIAN_VERSION  = $(patsubst %prel,%~pre1,$(VERSION))
+DEBIAN_VERSION          = 0.9.4~pre1
 
 EXTRA_DIST              = README autogen.sh CONTRIBUTE.md ChangeLog
 
