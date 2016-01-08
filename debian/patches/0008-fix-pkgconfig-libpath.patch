@@ -6,18 +6,18 @@ but is essential e. g., when building a 32-bit library on a 64-bit host.
 @@ -10,7 +10,7 @@
  pkgdatadir=${prefix}/share/lirc
  docdir=${prefix}/share/doc/${PACKAGE_TARNAME}
-
+ 
 -Libs: -llirc_driver
 +Libs: -L${libdir} -llirc_driver
  Cflags: -I${includedir} -fpic -DPLUGINDOCS='"${docdir}/plugindocs"'
-
+ 
  plugindir=${libdir}/lirc/plugins
 --- a/lirc.pc
 +++ b/lirc.pc
 @@ -10,5 +10,5 @@
  pkgdatadir=${datarootdir}/lirc
  plugindir=${libdir}/lirc/plugins
-
+ 
 -Libs: -llirc
 +Libs: -L${libdir} -llirc
  Cflags: -I${includedir}

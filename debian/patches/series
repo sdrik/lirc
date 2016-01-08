@@ -1,3 +1,4 @@
 0001-lirc.org-Remove-non-free-advertising.patch
+0002-Fix-Debian-FTBS-compilation-error.patch
 0007-tools-remove-configs-symlink.patch
 0008-fix-pkgconfig-libpath.patch
