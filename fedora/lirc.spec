@@ -1,11 +1,11 @@
 %global _hardened_build 1
 
 #global released 1
-%define tag     pre1
+%define tag     devel
 
 Name:           lirc
-Version:        0.9.4
-Release:        0.4%{?tag:.}%{?tag}%{?dist}
+Version:        0.9.5
+Release:        0.1%{?tag:.}%{?tag}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
 %global repo    http://downloads.sourceforge.net/lirc/%{version}/
@@ -14,7 +14,7 @@ Group:          System Environment/Daemons
                 # lib/ciniparser* and lib/dictionary* are BSD, others GPLv2
 License:        GPLv2 and BSD
 URL:            http://www.lirc.org/
-Source0:        %{?released:%{repo}}%{name}-%{version}%{?tag}.tar.gz
+Source0:        %{?released:%{repo}}%{name}-%{version}%{?tag:-}%{?tag}.tar.gz
 Source1:        README.fedora
 Source2:        99-remote-control-lirc.rules
                 # Config only, cannot be upstreamed.
@@ -181,7 +181,7 @@ full support for the ftdi device.
 
 
 %prep
-%setup -qn %{name}-%{version}%{?tag}
+%setup -qn %{name}-%{version}%{?tag:-}%{?tag}
 %patch1 -p1
 sed -i -e 's|/usr/local/etc/|/etc/|' contrib/irman2lirc
 
