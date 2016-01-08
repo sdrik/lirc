@@ -23,8 +23,9 @@ usr/bin/ircat
 usr/bin/pronto2lirc
 usr/bin/irrecord
 usr/bin/irsimreceive
-usr/share/man/man4/lirc.4*
+usr/share/man/man4l/lirc.4*
 usr/share/man/man8/lircd.8*
+usr/share/man/man8/lircd-uinput.8*
 usr/share/man/man8/lircmd.8*
 usr/share/man/man8/lircd-setup.8*
 usr/share/man/man8/lircrcd.8*
