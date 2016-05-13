@@ -1,0 +1,19 @@
+#!/bin/sh
+
+# Check that the debian directory in the workspace (which typically is
+# is changed) is synced with top-level debian/ which is what's checked
+# in.
+#
+# Your really want this. Enable using: cd .git/hooks; ln -s ../../pre-commit
+# Use 'make sync' to sync the two directories.
+
+cd $(git rev-parse --show-toplevel)
+
+test -e lirc-debian-src-*/*/debian/control || exit 0
+
+diff=$(diff -r lirc-debian-src-*/*/debian debian)
+if test -n "$diff"; then
+    echo "The debian in workspace differs from debian."
+    echo "Try \"make sync\" or use --no-verify."
+    exit 1
+fi

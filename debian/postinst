@@ -1,0 +1,10 @@
+#!/bin/sh
+
+set -e
+
+systemd-tmpfiles --create /usr/lib/tmpfiles.d/lirc.conf || :
+
+python3 -m compileall  /usr/lib/*/python3/dist-packages/lirc/
+
+
+#DEBHELPER#

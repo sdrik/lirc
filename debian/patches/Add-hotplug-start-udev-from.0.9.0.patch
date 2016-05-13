@@ -1,0 +1,40 @@
+Description: Add the removed hotplugging udev rule to contrib
+
+ 0.9.4 basically removes the udev rule which used to restart lirc
+ on hotplugging events. The rule is incompatible with the systemd setup,
+ and is also known to have created problems. Nevertheless, add rule
+ as an example which can be enabled on a case-by-case basis by user.
+ .
+ lirc (0.9.4~pre2-1.2) experimental; urgency=medium
+ .
+   * Non-maintainer upload.
+   * Fix some debian mentor warnings.
+Author: Alec Leamas <leamas.alec@gmail.com>
+
+---
+The information above should follow the Patch Tagging Guidelines, please
+checkout http://dep.debian.net/deps/dep3/ to learn about the format. Here
+are templates for supplementary fields that you might want to add:
+
+Origin: <upstream>, <TBD>
+Bug: <TDB>
+Bug-Debian: http://bugs.debian.org/<TBD>
+Bug-Ubuntu: https://launchpad.net/bugs/<TBD>
+Forwarded: <no|not-needed|url proving that it has been forwarded>
+Reviewed-By: <name and email of someone who approved the patch>
+Last-Update: <YYYY-MM-DD>
+
+--- /dev/null
++++ lirc-0.9.4~pre2/contrib/85-lirc.rules
+@@ -0,0 +1,11 @@
++#These rules are currently only adapted for a single lirc device.
++#They are mainly used for hotplugability of the USB devices
++#So that the user won't have to restart the lircd process.
++#
++#If a user has multiple lirc devices, and removes one of them
++#The other will stop working as well.  This is a side effect
++#of both this udev script as well as the lirc architecture
++#Of chaining lircd processes.
++ACTION=="add", KERNEL=="lirc[0-9]", RUN="/etc/init.d/lirc restart udev"
++ACTION=="remove", KERNEL=="lirc[0-9]", RUN="/etc/init.d/lirc stop udev"
++
