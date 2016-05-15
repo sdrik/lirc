@@ -17,6 +17,17 @@ The former single lirc service is replaced with the three systemd
 services lircd.service, lircmd.servoce and irexec.service. There is
 no counterpart to the 0.9.0 'lirc' service which covered all of these.
 
+0.9.4 defaults to using systemd for controlling the services. This
+is not just start/stop functionality, systemd is used to implement
+new features and to address shortcomings in 0.9.0. However, traditional
+systemV scripts are also installed and could be used although this
+is less tested and not really documented.
+
+Previous lirc package installed a udev rule which autostarted lircd
+when a new /dev/lirc* device was created, typically when connecting
+some kind of USB device. This rule is no longer present, users
+depending on lircd needs to start the lircd.service explicitly.
+
 As shipped, lircd is configured to use the devinput driver and the
 'auto' device. This should be a working configuration if:
   - The capture device is supported by the kernel.
@@ -24,11 +35,6 @@ As shipped, lircd is configured to use the devinput driver and the
   - There is exactly one capture device (i. e., /sys/class/rc/ entry).
   - There is no need to send (i. e., to do IR blasting).
 Bottom line: lircd has a limited but sometimes working setup as shipped.
-
-Previous lirc package installed a udev rule which autostarted lircd
-when a new /dev/lirc* device was created, typically when connecting
-some kind of USB device. This rule is no longer present, so users
-depending on lircd needs to start the lircd.service explicitly.
 
 
 Using the update script
@@ -99,7 +105,7 @@ be in place if this service is used. Enable, start and check using
 Re-enabling the udev autostart rule
 ===================================
 
-The udev rule which autostarts lirc is still available in 
+The udev rule which autostarts lirc is still available in
 /usr/share/lirc/contrib/85-lirc.rules. This can be copied to /etc/udev/rules.d
 to re-enable the hotplugging lirc restart. Here are dragons:
 

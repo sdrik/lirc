@@ -30,11 +30,9 @@ leamas's dpkg-addons repo and some packages:
     # dnf copr enable leamas/dpkg-addons
     # dnf install dpkg-addons dpkg dpkg-dev devscripts
 
-The imported upstream lirc sources lives in the "upstream" submodule.
-Check status and update to latest available upstream using:
-
-    $ git submodule status upstream
-    $ git submodule update upstream
+The imported upstream lirc sources lives in the "sources" submodule. It
+typically is committed as last release i. e., the --recursive clone
+command (above) checks out this.
 
 
 ## Building deb packages on Debian
