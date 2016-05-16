@@ -1,6 +1,0 @@
-Module.symvers
-irpipe.mod.c
-modules.order
-test
-.irpipe*
-.tmp*

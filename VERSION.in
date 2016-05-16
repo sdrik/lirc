@@ -1,4 +1,0 @@
-VERSION="@VERSION@"
-COMMIT="@commit@"
-DATE="@date@"
-REFS="@refs@"
