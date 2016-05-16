@@ -16,13 +16,16 @@ Describing this procedure is the main purpose of this document.
 
 To build the debian source package clone and run make using something like:
 
-    $ git clone --recursive -b debian git://git.code.sf.net/p/lirc/code lirc-pkg
+    $ git clone --recursive -b debian git://git.code.sf.net/p/lirc/git lirc-pkg
     $ cd lirc-pkg
-    $ make
+    $ make jessie
 
 This creates a directory like lirc-debian-src-0.9.4pre2 and also a
 corresponding tarball lirc-debian-src-0.9.4pre2-1.tar.gz.  See below for
 creating .deb packages from the debian sources.
+
+The *jessie* target could actually be any of jessie, stretch, jessie or
+xenial.  A plain make defaults to creating a sid (unstable) tarball.
 
 Creating the source package is also tested on Fedora. This requires
 leamas's dpkg-addons repo and some packages:
@@ -43,7 +46,7 @@ rebuild it from git (above) and do something similar to
     $ tar xf lirc-debian-src-0.9.4-1.2.tar.gz
     $ cd lirc-debian-src-0.9.4~pre2
     $ sudo apt-get install pbuilder
-    $ sudo pbuilder create --distribution stretch  --overrride-config
+    $ sudo pbuilder create --distribution stretch  --override-config
     ## stretch could be 'jessie', or 'sid'.
     $ sudo rm -f /var/cache/pbuilder/result/*
     $ sudo pbuilder build *.dsc
@@ -77,6 +80,7 @@ ubuntu distro instead of a debian one i. e.,
 
     $ sudo pbuilder create --distribution trusty  --override-config
     ## Or 'xenial'.
+r
 
 
 ## Building a patched version

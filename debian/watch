@@ -1,2 +1,2 @@
 version=3
-http://sf.net/lirc/lirc-(\d.+)\.tar\.gz
+opts="uversionmangle=s/pre/~pre/" http://sf.net/lirc/lirc-([0-9].+)\.tar\.gz

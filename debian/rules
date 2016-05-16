@@ -3,9 +3,11 @@
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/default.mk
 
-export DEB_BUILD_OPTIONS        = parallel=8
-export DEB_BUILD_MAINT_OPTIONS  = hardening=+all
-export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
+export DEB_BUILD_OPTIONS            = parallel=8
+export DEB_BUILD_MAINT_OPTIONS      = hardening=+all
+export DEB_LDFLAGS_MAINT_APPEND     = -Wl,--as-needed
+export DEB_BUILD_HARDENING_FORTIFY  = 1
+
 
 ifneq (,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
   NUMJOBS = $(patsubst parallel=%,%,$(filter parallel=%,$(DEB_BUILD_OPTIONS)))
@@ -18,6 +20,10 @@ endif
 
 override_dh_autoreconf:
 	dh_autoreconf $(CURDIR)/autogen.sh
+
+override_dh_auto_configure:
+	dh_auto_configure -- \
+	    --prefix=/usr $(shell dpkg-buildflags --export=configure)
 
 override_dh_auto_install:
 	$(MAKE) -j DESTDIR=$(CURDIR)/debian/tmp \

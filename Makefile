@@ -17,8 +17,29 @@ DEBIAN_WORKDIR = $(SRCDIR)/lirc-$(DEBIAN_VERSION)/debian
 WORKDIR_SRC    = $(shell find $(DEBIAN_WORKDIR) -type f 2>/dev/null || echo "")
 
 
-all: debian
+all: sid
 
+
+sid: debian
+
+stretch: debian
+
+jessie:
+	sed -i '/^Standards-Version:/s/:.*/: 3.9.6/' debian/control
+	$(MAKE) debian
+	git checkout debian/control
+
+trusty:
+	sed -i '/^Standards-Version:/s/:.*/: 3.9.5/' debian/control
+	sed -i '1 s/experimental/trusty/' debian/changelog
+	$(MAKE) debian
+	git checkout debian/control debian/changelog
+
+xenial:
+	sed -i '1 s/experimental/xenial/' debian/changelog
+	sed -i '/^Standards-Version:/s/:.*/: 3.9.7/' debian/control
+	$(MAKE) debian
+	git checkout debian/control debian/changelog
 
 # If upstream isn't configured version isn't available => build upstream
 # and re-invoke make with same targets. Otherwise, run a complete make.
@@ -55,6 +76,7 @@ $(DEBIAN_GZ): $(UPSTREAM_GZ) $(DEBIAN_SRC)
 	cp -ar debian $(SRCDIR)/lirc-$(PKG_VERSION)
 	cd $(SRCDIR)/lirc-$(PKG_VERSION) && debuild -S -us -uc -sa
 	rm -r $(SRCDIR)/lirc-$(PKG_VERSION)
+##	tar czf $@ $(SRCDIR) && rm -r $(SRCDIR)
 	tar czf $@ $(SRCDIR)
 
 sync: .sync-stamp .workspace-stamp
