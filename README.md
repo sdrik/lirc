@@ -1,4 +1,6 @@
-## General
+# LIRC Debian packaging README
+
+### General
 
 The debian packaging lives in the 'debian' branch of the lirc project.
 The goal is to provide modern lirc packages for debian and ubuntu. At
@@ -12,7 +14,7 @@ To use the source package it must be used to build binary .deb packages.
 Describing this procedure is the main purpose of this document.
 
 
-## Rebuilding the source package from git
+### Rebuilding the source package from git
 
 To build the debian source package clone and run make using something like:
 
@@ -20,9 +22,8 @@ To build the debian source package clone and run make using something like:
     $ cd lirc-pkg
     $ make jessie
 
-This creates a directory like lirc-debian-src-0.9.4pre2 and also a
-corresponding tarball lirc-debian-src-0.9.4pre2-1.tar.gz.  See below for
-creating .deb packages from the debian sources.
+This creates a tarball lirc-debian-src-0.9.4pre2-1.tar.gz. See below for
+creating binary .deb packages from the debian sources.
 
 The *jessie* target could actually be any of jessie, stretch, jessie or
 xenial.  A plain make defaults to creating a sid (unstable) tarball.
@@ -38,7 +39,7 @@ typically is committed as last release i. e., the --recursive clone
 command (above) checks out this.
 
 
-## Building deb packages on Debian
+### Building deb packages on Debian
 
 To build the debian package download the tarball from sourceforge [1] or
 rebuild it from git (above) and do something similar to
@@ -65,7 +66,7 @@ You might want to exclude some optional packages to trim the installed size:
      programs using lirc.
 
 
-## Building deb packages on Ubuntu
+### Building deb packages on Ubuntu
 
 The debian sources are known to build on Trusty (14.04) and Xenial (16.04).
 
@@ -83,7 +84,7 @@ ubuntu distro instead of a debian one i. e.,
 r
 
 
-## Building a patched version
+### Building a patched version
 
 The pbuilder-based workflow is designed to rebuild the sources as-is without
 further modifications. To make it possible to patch the sources instead use
@@ -111,5 +112,7 @@ Then rebuild using e. g.,
 
     $ debuild -us -uc
 
+
+## References
 
 [1] https://sourceforge.net/projects/lirc/files/LIRC/
