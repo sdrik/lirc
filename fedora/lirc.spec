@@ -1,14 +1,14 @@
 %global _hardened_build 1
 
 #global released 1
-%define tag     devel
+#define tag     devel
 
 Name:           lirc
-Version:        0.9.5
-Release:        0.1%{?tag:.}%{?tag}%{?dist}
+Version:        0.9.4
+Release:        %{?tag:0.}1%{?tag:.}%{?tag}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
-%global repo    http://downloads.sourceforge.net/lirc/%{version}/
+%global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}/
 
 Group:          System Environment/Daemons
                 # lib/ciniparser* and lib/dictionary* are BSD, others GPLv2
@@ -291,10 +291,11 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %exclude %{_libdir}/lirc/plugins/ftdi.so
 %exclude %{_libdir}/lirc/plugins/audio.so
 %{_datadir}/lirc/
+/var/lib/lirc/images
+/var/lib/lirc/plugins
 %exclude %{_datadir}/lirc/configs/*
 %{_mandir}/man1/*ir*.1*
 %{_mandir}/man1/*mode2*.1*
-%{_mandir}/man4l/lirc.*
 %{_mandir}/man5/lircd.conf.*
 %{_mandir}/man5/lircrc.*
 %{_mandir}/man8/lirc*d.8*
@@ -334,16 +335,22 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_udevrulesdir}/99-remote-control-lirc.rules
 
 %changelog
-* Tue Jan 05 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-0.4.devel
-- Removed lirc-drv-irman and lirc-drv-iguanair (these are now
-  maintained as separate packages)
+* Thu May 12 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.3a-5
+- Fix upstreamed/duplicated lirc.4 manpage (#1319344).
 
-* Fri Oct 23 2015 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-0.3.devel
-- rebuilt
-- Remove upstreamed selinux stuff.
+* Thu Feb 04 2016 Fedora Release Engineering <releng@fedoraproject.org> - 0.9.3a-4
+- Rebuilt for https://fedoraproject.org/wiki/Fedora_24_Mass_Rebuild
 
-* Mon Sep 28 2015 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-1.devel
-- rebuilt
+* Wed Nov 25 2015 Alec Leamas <leamas.alec@gmail.com> - 0.9.3a-3
+- Fix bad Obsoletes (#1284522).
+
+-* Tue Nov 10 2015 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.9.3a-2
+- Rebuilt for https://fedoraproject.org/wiki/Changes/python3.5
+
+* Wed Oct 14 2015 Alec Leamas <leamas.alec@gmail.com> - 0.9.3a-1
+- Upstream update
+- Added missing icons dependency.
+- Some patches upstreamed.
 
 * Mon Sep 14 2015 Alec Leamas <leamas.alec@gmail.com> 0.9.3-6
 - Add a selinux policy.
