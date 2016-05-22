@@ -1,0 +1,4 @@
+[submodule "sources"]
+	path = sources
+	url = ../lirc.git
+	branch = release-0_9_4
