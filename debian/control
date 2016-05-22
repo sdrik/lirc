@@ -127,6 +127,7 @@ Conflicts: liblircclient-dev (<< 0.9.1)
 Replaces: liblircclient-dev (<< 0.9.1)
 Depends:
  liblirc0 (= ${binary:Version}),
+ liblirc-client0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
  lsb-base
