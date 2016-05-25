@@ -16,6 +16,8 @@ SRCDIR         = lirc-debian-src-$(DEBIAN_VERSION)
 DEBIAN_WORKDIR = $(SRCDIR)/lirc-$(DEBIAN_VERSION)/debian
 WORKDIR_SRC    = $(shell find $(DEBIAN_WORKDIR) -type f 2>/dev/null || echo "")
 
+UBUNTU_DEVS    = Ubuntu Developers <ubuntu-devel-discuss at lists.ubuntu.com>
+
 
 all: sid
 
@@ -24,22 +26,40 @@ sid: debian
 
 stretch: debian
 
-jessie:
+jessie: .phony
+	cp debian/control debian/control.BAK
 	sed -i '/^Standards-Version:/s/:.*/: 3.9.6/' debian/control
+	sed -i '/^Maintainer/s/:.*/: $(UBUNTU_DEVS)/' debian/control
 	$(MAKE) debian
-	git checkout debian/control
+	mv debian/control.BAK debian/control
 
 trusty:
+	cp debian/control debian/control.BAK
+	cp debian/NEWS debian/NEWS.BAK
+	cp debian/README.Debian debian/README.Debian.BAK
+	cp ubuntu.changelog debian/changelog
+	sed -i '1 s/experimental/trusty/' debian/README.Debian
+	sed -i '1 s/experimental/trusty/' debian/NEWS
 	sed -i '/^Standards-Version:/s/:.*/: 3.9.5/' debian/control
-	sed -i '1 s/experimental/trusty/' debian/changelog
+	sed -i '/^Maintainer/s/:.*/: $(UBUNTU_DEVS)/' debian/control
 	$(MAKE) debian
-	git checkout debian/control debian/changelog
+	mv debian/control.BAK debian/control
+	mv debian/NEWS.BAK debian/NEWS
+	mv debian/README.Debian.BAK debian/README.debian
 
 xenial:
-	sed -i '1 s/experimental/xenial/' debian/changelog
+	cp debian/control debian/control.BAK
+	cp debian/NEWS debian/NEWS.BAK
+	cp debian/README.Debian debian/README.Debian.BAK
+	cp ubuntu.changelog debian/changelog
+	sed -i '1 s/experimental/xenial/' debian/README.Debian
+	sed -i '1 s/experimental/xenial/' debian/NEWS
 	sed -i '/^Standards-Version:/s/:.*/: 3.9.7/' debian/control
+	sed -i '1 s/trusty/xenial/' debian/changelog
 	$(MAKE) debian
-	git checkout debian/control debian/changelog
+	mv debian/control.BAK debian/control
+	mv debian/NEWS.BAK debian/NEWS
+	mv debian/README.Debian.BAK debian/README.debian
 
 # If upstream isn't configured version isn't available => build upstream
 # and re-invoke make with same targets. Otherwise, run a complete make.
