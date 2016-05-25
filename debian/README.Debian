@@ -5,7 +5,8 @@ The configuration is so much changed that updating  from 0.9.0 requires
 manual intervention. This could be done using the update scripts or as
 a completely manual process.
 
-The outcome of the process is up to three different systemd service.
+The outcome of the process is up to three different services by
+default controlled by systemd.
 
 
 The changes
@@ -14,7 +15,7 @@ The changes
 The hardware.conf file is no longer supported.
 
 The former single lirc service is replaced with the three systemd
-services lircd.service, lircmd.servoce and irexec.service. There is
+services lircd.service, lircmd.service and irexec.service. There is
 no counterpart to the 0.9.0 'lirc' service which covered all of these.
 
 0.9.4 defaults to using systemd for controlling the services. This
@@ -102,17 +103,19 @@ be in place if this service is used. Enable, start and check using
     $ sudo start lircmd.service
     $ systemctl status lircmd.service
 
-Re-enabling the udev autostart rule
-===================================
+Re-enabling the udev autostart rule.
+====================================
 
 The udev rule which autostarts lirc is still available in
-/usr/share/lirc/contrib/85-lirc.rules. This can be copied to /etc/udev/rules.d
-to re-enable the hotplugging lirc restart. Here are dragons:
+/usr/share/lirc/contrib/85-lirc.rules. This can be copied to
+/etc/udev/rules.d to re-enable the hotplugging lirc restart. However,
+here are dragons:
 
     - The rule is not compatible with the systemd configuration, the
       sysV scripts must be used to control lirc.
-    - The rule has never worked for other devices then /dev/lirc*
-    - The rule ha never worked with multiple /dev/lirc*
+    - The rule is known to cause subtle bugs e. g., lp: #499588.
+    - The rule has never worked for other devices then /dev/lirc* ones.
+    - The rule has never worked with multiple /dev/lirc* devices.
 
 
 -- Alec Leamas <al@jessie.nowhere.net>  Mon, 10 Jan 2016 14:11:10 +0200

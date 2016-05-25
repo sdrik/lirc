@@ -4,7 +4,7 @@
 
 The debian packaging lives in the 'debian' branch of the lirc project.
 The goal is to provide modern lirc packages for debian and ubuntu. At
-the time of writing it provides 0.9.4pre2 packages.
+the time of writing it provides 0.9.4 packages.
 
 The packaging provides a debian source package. Such a source package
 can be built using git clone (below). Lirc releases also contains a
@@ -22,7 +22,7 @@ To build the debian source package clone and run make using something like:
     $ cd lirc-pkg
     $ make jessie
 
-This creates a tarball lirc-debian-src-0.9.4pre2-1.tar.gz. See below for
+This creates a tarball lirc-debian-src-0.9.4-1.3.tar.gz. See below for
 creating binary .deb packages from the debian sources.
 
 The *jessie* target could actually be any of jessie, stretch, jessie or
@@ -44,8 +44,8 @@ command (above) checks out this.
 To build the debian package download the tarball from sourceforge [1] or
 rebuild it from git (above) and do something similar to
 
-    $ tar xf lirc-debian-src-0.9.4-1.2.tar.gz
-    $ cd lirc-debian-src-0.9.4~pre2
+    $ tar xf lirc-debian-src-0.9.4-1.3.tar.gz
+    $ cd lirc-debian-src-0.9.4
     $ sudo apt-get install pbuilder
     $ sudo pbuilder create --distribution stretch  --override-config
     ## stretch could be 'jessie', or 'sid'.
@@ -94,7 +94,7 @@ debuild(3) and friends. First, unpack the sources;
     $ tar xf lirc-debian-src-0.9.4-1.tar.gz
     $ cd debian-src
     $ dpkg-source -x *dsc
-    $ cd lirc-0.9.4pre2
+    $ cd lirc-0.9.4
 
 Then, install the build dependencies:
 
