@@ -130,7 +130,6 @@ Depends:
  liblirc0 (= ${binary:Version}),
  liblirc-client0 (= ${binary:Version}),
  ${misc:Depends},
- ${shlibs:Depends},
  lsb-base
 Description: Infra-red remote control support - development files
  LIRC stands for 'Linux Infra-red Remote Control'.
