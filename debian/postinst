@@ -4,6 +4,9 @@ set -e
 
 systemd-tmpfiles --create /usr/lib/tmpfiles.d/lirc.conf || :
 
+test -e /etc/lirc/lircd.conf || \
+    cp /etc/lirc/lircd.conf.dist /etc/lirc/lircd.conf
+
 python3 -m compileall  /usr/lib/*/python3/dist-packages/lirc/
 
 

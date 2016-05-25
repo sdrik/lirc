@@ -45,6 +45,9 @@ override_dh_auto_install:
 	# ln -sf ../../../../../../javascript/jquery/jquery.js \
 	#     debian/tmp/usr/share/doc/lirc/lirc.org/api-docs/html
 
+	# Don't overwrite existing config file.
+	mv debian/tmp/etc/lirc/lircd.conf debian/tmp/etc/lirc/lircd.conf.dist
+
 override_dh_systemd_enable:
 	dh_systemd_enable --name=lircd
 
