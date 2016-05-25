@@ -24,6 +24,7 @@ Build-Depends:
  libsm-dev,
  libsystemd-daemon-dev | libsystemd-dev,
  libudev-dev,
+ libusb-dev,
  libusb-1.0-0-dev [linux-any],
  libx11-dev,
  libxt-dev,
