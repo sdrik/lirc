@@ -16,7 +16,7 @@ SRCDIR         = lirc-debian-src-$(DEBIAN_VERSION)
 DEBIAN_WORKDIR = $(SRCDIR)/lirc-$(DEBIAN_VERSION)/debian
 WORKDIR_SRC    = $(shell find $(DEBIAN_WORKDIR) -type f 2>/dev/null || echo "")
 
-UBUNTU_DEVS    = Ubuntu Developers <ubuntu-devel-discuss at lists.ubuntu.com>
+UBUNTU_DEVS    = Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 
 
 all: sid

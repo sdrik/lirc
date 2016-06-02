@@ -1,4 +1,12 @@
-lirc (0.9.4-1.3) xenial; urgency=medium
+lirc (0.9.4-2.1) trusty; urgency=medium
+  * Add upstream patch fixing intermittent parallel build errors.
+  * Add upstream patch fixing bad debug comment in lirc_options.conf.
+  * Add upstream patch fixing segfault using --connect (#195).
+  * Add upstream patch fixing lirc.org doc errors.
+  * Add upstream patch fixing disabled reception after send in girs.c
+  * Add upstream patch fixing bad state after deinit() in uirt2_raw.c
+ -- Alec Leamas  <leamas.alec@gmail.com>  Thu, 02 June 2016 11:14:25 +0100
+lirc (0.9.4-1.3) trusty; urgency=medium
 
   * First shot on major upstream updates.
     - Re-packaged from scratch based on new dh primitives.

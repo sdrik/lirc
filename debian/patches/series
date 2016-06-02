@@ -2,3 +2,10 @@
 0007-tools-remove-configs-symlink.patch
 0008-plugins-devinput-Make-the-list-devices-support-avail.patch
 Add-hotplug-start-udev-from.0.9.0.patch
+0003-lirc.org-Bugfix.patch
+0008-lib-use-proper-linking-method-to-avoid-parallel-buil.patch
+0009-lirc_options.conf-debug-loglevel-199.patch
+0010-lircd-liblirc_client-Fix-freeaddrinfo-handling-195.patch
+0011-lirc.org-Update.patch
+0012-plugins-girs.c-Enable-reception-after-sending.patch
+0013-plugins-uirt2_raw-Reset-device-to-UIR-mode-on-deinit.patch

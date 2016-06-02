@@ -1,0 +1,25 @@
+From 4c6fa1d95abe5bc3fc0689c4fedbc1e5a391f509 Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Fri, 27 May 2016 09:59:11 +0200
+Subject: [PATCH 09/13] lirc_options.conf: debug => loglevel (#199).
+
+---
+ lirc_options.conf | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/lirc_options.conf b/lirc_options.conf
+index cb6885c..46ce2c5 100644
+--- a/lirc_options.conf
++++ b/lirc_options.conf
+@@ -19,7 +19,7 @@ repeat-max      = 600
+ #effective-user =
+ #listen         = [address:]port
+ #connect        = host[:port]
+-#debug          = 6
++#loglevel       = 6
+ #uinput         = ...
+ #release        = ...
+ #logfile        = ...
+-- 
+2.5.5
+

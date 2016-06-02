@@ -1,0 +1,28 @@
+From f44346014e96ca6671b8fb8753b1d50a4ebf0061 Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Wed, 1 Jun 2016 22:52:47 +0200
+Subject: [PATCH 13/13] plugins/uirt2_raw: Reset device to UIR mode on deinit.
+
+If the UIRT is left in RAW mode, it does not trigger wake from S3.
+Setting the UIRT back to UIR mode on deinit allows wake from S3 to
+work properly.
+---
+ plugins/uirt2_raw.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/plugins/uirt2_raw.c b/plugins/uirt2_raw.c
+index 8df1364..0c318fb 100644
+--- a/plugins/uirt2_raw.c
++++ b/plugins/uirt2_raw.c
+@@ -278,6 +278,8 @@ static int uirt2_raw_deinit(void)
+ {
+ 	int version;
+ 
++	if (uirt2_setmodeuir(dev) < 0)
++		log_warn("uirt2_raw: could not set uir mode");
+ 	if (uirt2_getversion(dev, &version) >= 0 && version >= 0x0905)
+ 		tty_setdtr(drv.fd, 1);
+ 	uirt2_uninit(dev);
+-- 
+2.5.5
+

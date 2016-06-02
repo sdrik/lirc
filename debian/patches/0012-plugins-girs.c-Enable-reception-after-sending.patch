@@ -1,0 +1,26 @@
+From 27b1a1fe51ea74c2323d2d776605cc40d8cd04db Mon Sep 17 00:00:00 2001
+From: Bengt Martensson <barf@bengt-martensson.de>
+Date: Tue, 31 May 2016 17:32:53 +0200
+Subject: [PATCH 12/13] plugins/girs.c: Enable reception after sending.
+
+---
+ plugins/girs.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/plugins/girs.c b/plugins/girs.c
+index dafea3f..e725818 100644
+--- a/plugins/girs.c
++++ b/plugins/girs.c
+@@ -907,7 +907,7 @@ static int send(struct ir_remote* remote, struct ir_ncode* code)
+ 
+ 	sendcommandln(buf);
+ 	int success = readline(buf, LONG_LINE_SIZE, TIMEOUT_SEND);
+-
++	int enable_receive_success = dev.receive ? enable_receive() : 1;
+ 	//setLed(dev.transmitled, 0);
+-	return success;
++	return success && enable_receive_success;
+ }
+-- 
+2.5.5
+
