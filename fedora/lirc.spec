@@ -1,11 +1,11 @@
 %global _hardened_build 1
 
-#global released 1
+%global released 1
 #define tag     devel
 
 Name:           lirc
 Version:        0.9.4
-Release:        %{?tag:0.}1%{?tag:.}%{?tag}%{?dist}
+Release:        %{?tag:0.}4%{?tag:.}%{?tag}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
 %global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}/
@@ -19,6 +19,14 @@ Source1:        README.fedora
 Source2:        99-remote-control-lirc.rules
                 # Config only, cannot be upstreamed.
 Patch1:         0001-Changing-effective-user-default.patch
+Patch2:         0008-plugins-devinput-Make-the-list-devices-support-avail.patch
+Patch3:         0003-lib-use-proper-linking-method-to-avoid-parallel-buil.patch
+Patch4:         0003-lirc.org-Bugfix.patch
+Patch5:         0010-lircd-liblirc_client-Fix-freeaddrinfo-handling-195.patch
+Patch6:         0011-lirc.org-Update.patch
+Patch7:         0012-plugins-girs.c-Enable-reception-after-sending.patch
+Patch8:         0013-plugins-uirt2_raw-Reset-device-to-UIR-mode-on-deinit.patch
+
 
 BuildRequires:  alsa-lib-devel
 Buildrequires:  autoconf
@@ -181,9 +189,17 @@ full support for the ftdi device.
 
 
 %prep
-%setup -qn %{name}-%{version}%{?tag:-}%{?tag}
+%setup -qn %{name}-%{version}%{?tag}
 %patch1 -p1
+%patch2 -p1
+%patch3 -p1
+%patch4 -p1
+%patch5 -p1
+%patch6 -p1
+%patch7 -p1
+%patch8 -p1
 sed -i -e 's|/usr/local/etc/|/etc/|' contrib/irman2lirc
+sed -i -e 's/^#debug/#loglevel/' lirc_options.conf
 
 
 %build
@@ -335,6 +351,21 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_udevrulesdir}/99-remote-control-lirc.rules
 
 %changelog
+* Thu Jun 02 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-4
+- Adding upstream patches:
+  + Fix intermittent parallel build errors.
+  + Fix bad debug comment in lirc_options.conf.
+  + Fix segfault using --connect (#195).
+  + Fix lirc.org doc errors.
+  + Fix disabled reception after send in girs.c
+  + Fix bad state after deinit() in uirt2_raw.c
+
+* Thu May 26 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-3
+- Add fix for FTBS parallel build deps error.
+
+* Thu May 26 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-2
+- New upstream release.
+
 * Thu May 12 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.3a-5
 - Fix upstreamed/duplicated lirc.4 manpage (#1319344).
 
@@ -344,13 +375,13 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 * Wed Nov 25 2015 Alec Leamas <leamas.alec@gmail.com> - 0.9.3a-3
 - Fix bad Obsoletes (#1284522).
 
--* Tue Nov 10 2015 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.9.3a-2
+* Tue Nov 10 2015 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.9.3a-2
 - Rebuilt for https://fedoraproject.org/wiki/Changes/python3.5
 
 * Wed Oct 14 2015 Alec Leamas <leamas.alec@gmail.com> - 0.9.3a-1
-- Upstream update
-- Added missing icons dependency.
-- Some patches upstreamed.
+  - Upstream update
+  - Added missing icons dependency.
+  - Some patches upstreamed.
 
 * Mon Sep 14 2015 Alec Leamas <leamas.alec@gmail.com> 0.9.3-6
 - Add a selinux policy.
