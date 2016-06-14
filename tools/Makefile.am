@@ -26,6 +26,7 @@ bin_PROGRAMS            = ircat \
                           irsimreceive \
                           irsimsend \
                           irtestcase \
+                          irtool  \
                           irw \
                           lirc-lsremotes \
                           mode2
@@ -61,6 +62,8 @@ irtestcase_SOURCES      = irtestcase.cpp
 irtestcase_LDADD        = $(LIRC_LIBS)
 irsend_SOURCES          = irsend.cpp
 irsend_LDADD            = $(LIRC_LIBS)
+irtool_SOURCES          = irtool.cpp
+irtool_LDADD            = $(LIRC_LIBS)
 lirc_lsplugins_SOURCES  = lirc-lsplugins.cpp
 lirc_lsplugins_LDADD    = $(LIRC_LIBS)
 lirc_lsremotes_SOURCES  = lirc-lsremotes.cpp
@@ -108,7 +111,7 @@ cpplint:
 	    $(irpty_SOURCES) $(ircat_SOURCES) $(irrecord_SOURCES) \
 	    $(irsimsend_SOURCES) $(irsimreceive_SOURCES) \
 	    $(mode2_SOURCES) $(lirc_lsplugins_SOURCES) \
-	    $(irsend_SOURCES) $(lirc_lsremotes_SOURCES)
+	    $(irsend_SOURCES) $(lirc_lsremotes_SOURCES) $(irtool_SOURCES)
 
 pylint: irdb-get $(pkgpython_PYTHON)
 	PYTHONPATH=./lirc-setup $(PYLINT) --rcfile=pylint.conf \

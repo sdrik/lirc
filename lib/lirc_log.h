@@ -54,6 +54,7 @@ typedef enum {
 	LOG_DRIVER = 1,
 	LOG_LIB = 4,
 	LOG_APP = 8,
+	LOG_DISPATCH = 16,
 	LOG_ALL = 255
 } logchannel_t;
 

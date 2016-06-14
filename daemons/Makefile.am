@@ -2,7 +2,7 @@
 ACLOCAL_AMFLAGS         = -I m4
 
 AM_CPPFLAGS             = -I$(top_srcdir) -I$(top_srcdir)/lib -Wall
-AM_CPPFLAGS             += -Wp,-D_FORTIFY_SOURCE=2 @osflags@
+AM_CPPFLAGS             += -std=c++11 -Wp,-D_FORTIFY_SOURCE=2 @osflags@
 AM_LDFLAGS              = -lpthread $(SYSTEMD_LIBS)
 
 CLEANFILES              = *~
@@ -20,7 +20,10 @@ if HAVE_UINPUT
 sbin_PROGRAMS           += lircd-uinput
 endif
 
-lircd_SOURCES           = lircd.cpp
+lircd_SOURCES           = lircd.cpp commands.cpp commands.h \
+                          fd_list.h fd_list.cpp \
+                          pidfile.h pidfile.cpp \
+                          lircd_options.h lircd_options.cpp
 lircd_LDADD             = ../lib/liblirc.la
 
 lircd_uinput_SOURCES    = lircd-uinput.cpp
@@ -32,7 +35,6 @@ lircmd_LDADD            = ../lib/liblirc.la
 cpplint:
 	../git-tools/cpplint.py $(lircd_SOURCES) $(lircrcd_SOURCES) \
              $(lircd_uinput_SOURCES) $(lircmd_SOURCES)
-
 
 install-exec-local:
 	test -d  $(DESTDIR)$(varrundir)/$(PACKAGE) \

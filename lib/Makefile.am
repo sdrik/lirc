@@ -26,6 +26,7 @@ liblirc_la_SOURCES          = config_file.c \
                               lirc_options.c \
                               receive.c  \
                               release.c \
+                              reply_parser.cpp \
                               serial.c \
                               transmit.c \
                               util.c
@@ -72,6 +73,7 @@ dist_lircinclude_HEADERS    = config_file.h \
                               lirc_log.h \
                               lirc_options.h \
                               release.h \
+                              reply_parser.h \
                               receive.h \
                               serial.h \
                               transmit.h \

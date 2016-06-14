@@ -466,9 +466,9 @@ static int setmode_func(int fd, char* message, char* arguments)
 static int send_result(int fd, char* message, const char* result)
 {
 	const char* count = "1\n";
-	char buffer[strlen(result) + 1 + 1];
+	char buffer[128];
 
-	sprintf(buffer, "%s\n", result);
+	snprintf(buffer, sizeof(buffer) - 1, "%s\n", result);
 
 	if (!(write_socket_len(fd, protocol_string[P_BEGIN]) &&
 	      write_socket_len(fd, message) &&

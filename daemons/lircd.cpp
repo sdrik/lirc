@@ -1,66 +1,74 @@
+// FIXME: Create ctrl, backend and data sockets in same dir as lircd.
 /****************************************************************************
 ** lircd.c *****************************************************************
 ****************************************************************************
 *
-* lircd - LIRC Decoder Daemon
+* lircd - LIRC dispatcher
 *
-* Copyright (C) 1996,97 Ralph Metzler <rjkm@thp.uni-koeln.de>
-* Copyright (C) 1998,99 Christoph Bartelmus <lirc@bartelmus.de>
-*
-*  =======
-*  HISTORY
-*  =======
-*
-* 0.1:  03/27/96  decode SONY infra-red signals
-*                 create mousesystems mouse signals on pipe /dev/lircm
-*       04/07/96  send ir-codes to clients via socket (see irpty)
-*       05/16/96  now using ir_remotes for decoding
-*                 much easier now to describe new remotes
-*
-* 0.5:  09/02/98 finished (nearly) complete rewrite (Christoph)
+* Copyright (c) 2015 Alec Leamas
 *
 */
 
 /**
  * @file lircd.c
- * This file implements the main daemon lircd.
+ * This file implements the main dispatcher daemon lircd.
+ *
+ * The dispatcher works as a broker between connected clients and one or more
+ * backends. It has three well-known socket interfaces:
+ *
+ *   - The lircd interface is what the clients connects to. It has the same
+ *     command interface as described in the 0.9.x lircd manpage,
+ *   - The backend interface is what the backends connects to. When a backend
+ *     connects a registration sequence is initated.
+ *   - The control interface is used to send commands to specific backends.
+ *     A new tool irtool exposes this as a command line application.
+ *
+ *  The dispatcher basically does three things:
+ *
+ *   - Any decoded event from any backend is broadcasted to all clients.
+ *   - A command from a client is forwarded to the default backend.
+ *   - A command from the control interface is forwarded to the
+ *     designated backend (e. g., send-once) or handled by lircd (e. g.,
+ *     list-backends).
+ *
+ *  The default backend is the last registered backend. It can
+ *  be inspected and changed through the control interface.
+ *
+ *  Some former options, notably --connect, --listen and --uinput are
+ *  implemented as separate clients or backends.
+ *
+ *  ------------------
+ *
+ *  Backends exists in two states: registered/unregistered. They are
+ *  created unregistered, and becomes registered after the  GET-ID
+ *  and SET-DATA-SOCKET commands from lircd to backend. The command and
+ *  data channels have a fixed relation.
+ *
+ *  When a command is initiated from a client the client and backend becomes
+ *  connected. While connected,  lircd will not accept more commands and will
+ *  also not broadcast keypress events to the client. Connections are closed
+ *  after an END line from the backend or a timeout.
  */
 
 #ifdef HAVE_CONFIG_H
 # include <config.h>
 #endif
 
-#include <grp.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdarg.h>
-#include <ctype.h>
-#include <string.h>
-#include <signal.h>
-#include <unistd.h>
-#include <time.h>
-#include <getopt.h>
-#include <sys/time.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <dirent.h>
 #include <errno.h>
-#include <limits.h>
-#include <fcntl.h>
-#include <sys/file.h>
-#include <pwd.h>
 #include <poll.h>
+#include <signal.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/file.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/un.h>
+#include <time.h>
 
-#if defined(__linux__)
-#include <linux/input.h>
-#include <linux/uinput.h>
-#include "lirc/input_map.h"
-#endif
+#include <vector>
+#include <atomic>
 
 #ifdef HAVE_SYSTEMD
 #include "systemd/sd-daemon.h"
@@ -84,15 +92,15 @@
 #define CLOCK_MONOTONIC SYSTEM_CLOCK
 int clock_gettime(int clk_id, struct timespec *t){
 	static mach_timebase_info_data_t timebase = {0};
-	uint64_t time;
-
 	if (timebase.numer == 0)
 		mach_timebase_info(&timebase);
-	time = mach_absolute_time();
-	tv.>tv_nsec = ((double) time *                                     // NOLINT
-		    (double) timebase.numer)/((double) timebase.denom);    // NOLINT
-	tv.>tv_sec = ((double)time *                                       // NOLINT
-		   (double)timebase.numer)/((double)timebase.denom * 1e9); // NOLINT
+
+	double time = static_cast<double>(mach_absolute_time());
+	double numer = static_cast<double>(timebase.numer);
+	double denom = static_cast<double>(timebase.denom);
+
+	tv.>tv_nsec = (time * numer) / denom;>			// NOLINT
+	tv.>tv_sec = (time * numer) / (denom * 1e9);		// NOLINT
 	return 0;
 }
 #endif
@@ -108,1622 +116,111 @@ int clock_gettime(int clk_id, struct timespec *t){
 	"Level could be ERROR, WARNING, NOTICE, INFO, DEBUG, TRACE, TRACE1,\n" \
 	" TRACE2 or a number in the range 3..10.\n"
 
+#include "commands.h"
+#include "reply_parser.h"
+#include "pidfile.h"
+#include "lircd_options.h"
+#include "fd_list.h"
+
 #ifndef PACKET_SIZE
 #define PACKET_SIZE 256
 #endif
 #define WHITE_SPACE " \t"
 
-static const logchannel_t logchannel = LOG_APP;
-
-struct peer_connection {
-	char*		host;
-	unsigned short	port;		// NOLINT
-	struct timeval	reconnect;
-	int		connection_failure;
-	int		socket;
-};
-
-
-static const char* const help =
-	"Usage: lircd [options] <config-file>\n"
-	"\t -h --help\t\t\tDisplay this message\n"
-	"\t -v --version\t\t\tDisplay version\n"
-	"\t -O --options-file\t\tOptions file\n"
-        "\t -i --immediate-init\t\tInitialize the device immediately at start\n"
-	"\t -n --nodaemon\t\t\tDon't fork to background\n"
-	"\t -p --permission=mode\t\tFile permissions for " LIRCD "\n"
-	"\t -H --driver=driver\t\tUse given driver (-H help lists drivers)\n"
-	"\t -d --device=device\t\tRead from given device\n"
-	"\t -U --plugindir=dir\t\tDir where drivers are loaded from\n"
-	"\t -l --listen[=[address:]port]\tListen for network connections\n"
-	"\t -c --connect=host[:port]\tConnect to remote lircd server\n"
-	"\t -o --output=socket\t\tOutput socket filename\n"
-	"\t -P --pidfile=file\t\tDaemon pid file\n"
-	"\t -L --logfile=file\t\tLog file path (default: use syslog)'\n"
-	"\t -D[level] --loglevel[=level]\t'info', 'warning', 'notice', etc., or 3..10.\n"
-	"\t -r --release[=suffix]\t\tAuto-generate release events\n"
-	"\t -a --allow-simulate\t\tAccept SIMULATE command\n"
-	"\t -Y --dynamic-codes\t\tEnable dynamic code generation\n"
-	"\t -A --driver-options=key:value[|key:value...]\n"
-	"\t\t\t\t\tSet driver options\n"
-#       if defined(__linux__)
-	"\t -u --uinput\t\t\tgenerate Linux input events\n"
-#       endif
-	"\t -e --effective-user=uid\t\tRun as uid after init as root\n"
-	"\t -R --repeat-max=limit\t\tallow at most this many repeats\n";
-
-
-static const struct option lircd_options[] = {
-	{ "help",	    no_argument,       NULL, 'h' },
-	{ "version",	    no_argument,       NULL, 'v' },
-	{ "nodaemon",	    no_argument,       NULL, 'n' },
-	{ "immediate-init", no_argument,       NULL, 'i' },
-	{ "options-file",   required_argument, NULL, 'O' },
-	{ "permission",	    required_argument, NULL, 'p' },
-	{ "driver",	    required_argument, NULL, 'H' },
-	{ "device",	    required_argument, NULL, 'd' },
-	{ "listen",	    optional_argument, NULL, 'l' },
-	{ "connect",	    required_argument, NULL, 'c' },
-	{ "output",	    required_argument, NULL, 'o' },
-	{ "pidfile",	    required_argument, NULL, 'P' },
-	{ "plugindir",	    required_argument, NULL, 'U' },
-	{ "logfile",	    required_argument, NULL, 'L' },
-	{ "debug",	    optional_argument, NULL, 'D' },  // compatibility
-	{ "loglevel",	    optional_argument, NULL, 'D' },
-	{ "release",	    optional_argument, NULL, 'r' },
-	{ "allow-simulate", no_argument,       NULL, 'a' },
-	{ "dynamic-codes",  no_argument,       NULL, 'Y' },
-	{ "driver-options", required_argument, NULL, 'A' },
-	{ "effective-user", required_argument, NULL, 'e' },
-#        if defined(__linux__)
-	{ "uinput",	    no_argument,       NULL, 'u' },
-#        endif
-	{ "repeat-max",	    required_argument, NULL, 'R' },
-	{ 0,		    0,		       0,    0	 }
-};
-
+static const logchannel_t logchannel = LOG_DISPATCH;
+static const int COMMAND_TIMEOUT_TICKS = 20;
 
 /* Forwards referenced in directive definition below. */
 
-static int list(int fd, char* message, char* arguments);
-static int set_transmitters(int fd, char* message, char* arguments);
-static int set_inputlog(int fd, char* message, char* arguments);
-static int simulate(int fd, char* message, char* arguments);
-static int send_once(int fd, char* message, char* arguments);
-static int drv_option(int fd, char* message, char* arguments);
-static int send_start(int fd, char* message, char* arguments);
-static int send_stop(int fd, char* message, char* arguments);
-static int send_core(int fd, char* message, char* arguments, int once);
-static int version(int fd, char* message, char* arguments);
+static int get_default_backend_cmd(
+	int fd, const char* message, const char* arguments);
+static int list_backends_cmd(
+	int fd, const char* msg, const char* args);
+static int set_default_backend_cmd
+	(int fd, const char* message, const char* arguments);
+static int set_inputlog_cmd(
+	int fd, const char* message, const char* arguments);
+static int simulate_cmd(
+	int fd, const char* message, const char* arguments);
+static int send_once_cmd(
+	int fd, const char* message, const char* arguments);
+static int send_start_cmd(
+	int fd, const char* message, const char* arguments);
+static int send_stop_cmd(
+	int fd, const char* message, const char* arguments);
+static int stop_backend_cmd(
+	int fd, const char* message, const char* arguments);
+static int list_remotes_cmd(
+	int fd, const char* message, const char* arguments);
+static int list_codes_cmd(
+	int fd, const char* message, const char* arguments);
+static int set_transmitters_cmd(
+	int fd, const char* message, const char* arguments);
+static int version_cmd(int fd, const char* message, const char* arguments);
 
 struct protocol_directive {
 	const char* name;
-	int (*function)(int fd, char* message, char* arguments);
+	int (*function)(int fd, const char* message, const char* arguments);
 };
 
-
-#ifndef timersub
-#define timersub(a, b, result)                                            \
-	do {                                                                    \
-		(result)->tv_sec = (a)->tv_sec - (b)->tv_sec;                         \
-		(result)->tv_usec = (a)->tv_usec - (b)->tv_usec;                      \
-		if ((result)->tv_usec < 0) {                                          \
-			--(result)->tv_sec;                                                 \
-			(result)->tv_usec += 1000000;                                       \
-		}                                                                     \
-	} while (0)
-#endif
-
-
-static struct ir_remote* remotes;
-static struct ir_remote* free_remotes = NULL;
-
-static int repeat_fd = -1;
-static char* repeat_message = NULL;
-static __u32 repeat_max = REPEAT_MAX_DEFAULT;
-
-static const char* configfile = NULL;
-static FILE* pidf;
-static const char* pidfile = PIDFILE;
-static const char* lircdfile = LIRCD;
 
 static const struct protocol_directive directives[] = {
-	{ "LIST",	      list	       },
-	{ "SEND_ONCE",	      send_once	       },
-	{ "SEND_START",	      send_start       },
-	{ "SEND_STOP",	      send_stop	       },
-	{ "SET_INPUTLOG",     set_inputlog     },
-	{ "DRV_OPTION",	      drv_option       },
-	{ "VERSION",	      version	       },
-	{ "SET_TRANSMITTERS", set_transmitters },
-	{ "SIMULATE",	      simulate	       },
-	{ NULL,		      NULL	       }
-	/*
-	 * {"DEBUG",debug},
-	 * {"DEBUG_LEVEL",debug_level},
-	 */
+	{ "LIST_BACKENDS",	 list_backends_cmd	    },
+	{ "STOP_BACKEND",	 stop_backend_cmd	    },
+	{ "SET_DEFAULT_BACKEND", set_default_backend_cmd    },
+	{ "GET_DEFAULT_BACKEND", get_default_backend_cmd    },
+	{ "SET-INPUTLOG",	 set_inputlog_cmd	    },
+	{ "SEND_ONCE",	    	 send_once_cmd		    },
+	{ "SEND_START",	    	 send_start_cmd		    },
+	{ "SEND_STOP",	    	 send_stop_cmd		    },
+	{ "LIST_REMOTES", 	 list_remotes_cmd	    },
+	{ "LIST_CODES", 	 list_codes_cmd		    },
+	{ "VERSION",		 version_cmd		    },
+	{ "SIMULATE",		 simulate_cmd		    },
+	{ "SET_TRANSMITTERS",	 set_transmitters_cmd	    },
+	{ NULL,			 NULL			    }
 };
 
-enum protocol_string_num {
-	P_BEGIN = 0,
-	P_DATA,
-	P_END,
-	P_ERROR,
-	P_SUCCESS,
-	P_SIGHUP
+static const int HEARTBEAT_US = 50000;
+
+typedef void (*SignalHandler)();
+std::atomic<SignalHandler> signal_handler(0);
+
+static const struct options_t* options;
+
+static FdList*  fdList(0);
+
+static Pidfile* pidfile(0);
+
+static int default_backend = -1;
+
+
+/** Parse and format the odd argument format for SIMULATE command. */
+class Simvalues {
+	private:
+		unsigned int scancode;
+		unsigned int repeat;
+		char keysym[32];
+		char remote[64];
+		char trash[32];
+
+	public:
+		/** Parse a <remote> <keysym> <repeat> <scancode> line, */
+		bool parse(const char* input) {
+			int r;
+			r = sscanf(input, "%64s %32s %d %x",
+				   remote, keysym, &repeat, &scancode);
+			return r == 4;
+		}
+
+		/** Format as requried by SIMULATE. */
+		std::string to_string() {
+			char buff[255];
+			snprintf(buff, sizeof(buff), "%016x %02x %s %s",
+				 scancode, repeat, keysym, remote);
+			return std::string(buff);
+		}
 };
-
-static const char* const protocol_string[] = {
-	"BEGIN\n",
-	"DATA\n",
-	"END\n",
-	"ERROR\n",
-	"SUCCESS\n",
-	"SIGHUP\n"
-};
-
-/* Used to be depending on FD_SETSIZE, but using poll() it's now arbitrary. */
-static const int MAX_PEERS  = 256;
-static const int MAX_CLIENTS = 256;
-
-static int sockfd, sockinet;
-static int do_shutdown;
-
-static int uinputfd = -1;
-static int clis[MAX_CLIENTS];
-
-static int nodaemon = 0;
-static loglevel_t loglevel_opt = LIRC_NOLOG;
-
-#define CT_LOCAL  1
-#define CT_REMOTE 2
-
-static int cli_type[MAX_CLIENTS];
-static int clin = 0; /* Number of clients */
-
-static int listen_tcpip = 0;
-static unsigned short int port = LIRC_INET_PORT;          // NOLINT
-static struct in_addr address;
-
-static struct peer_connection* peers[MAX_PEERS];
-static int peern = 0;
-
-static int daemonized = 0;
-static int allow_simulate = 0;
-static int userelease = 0;
-static int useuinput = 0;
-
-static sig_atomic_t term = 0, hup = 0, alrm = 0;
-static int termsig;
-
-static __u32 setup_min_freq = 0, setup_max_freq = 0;
-static lirc_t setup_max_gap = 0;
-static lirc_t setup_min_pulse = 0, setup_min_space = 0;
-static lirc_t setup_max_pulse = 0, setup_max_space = 0;
-
-/* Use already opened hardware? */
-int use_hw(void)
-{
-	return clin > 0 || (useuinput && uinputfd != -1) || repeat_remote != NULL;
-}
-
-/* set_transmitters only supports 32 bit int */
-#define MAX_TX (CHAR_BIT * sizeof(__u32))
-
-int max(int a, int b)
-{
-	return a > b ? a : b;
-}
-
-/* cut'n'paste from fileutils-3.16: */
-
-#define isodigit(c) ((c) >= '0' && (c) <= '7')
-
-/* Return a positive integer containing the value of the ASCII
-* octal number S.  If S is not an octal number, return -1.  */
-
-static int oatoi(const char* s)
-{
-	register int i;
-
-	if (*s == 0)
-		return -1;
-	for (i = 0; isodigit(*s); ++s)
-		i = i * 8 + *s - '0';
-	if (*s)
-		return -1;
-	return i;
-}
-
-/* A safer write(), since sockets might not write all but only some of the
- * bytes requested */
-int write_socket(int fd, const char* buf, int len)
-{
-	int done, todo = len;
-
-	while (todo) {
-		done = write(fd, buf, todo);
-		if (done <= 0)
-			return done;
-		buf += done;
-		todo -= done;
-	}
-	return len;
-}
-
-int write_socket_len(int fd, const char* buf)
-{
-	int len;
-
-	len = strlen(buf);
-	if (write_socket(fd, buf, len) < len)
-		return 0;
-	return 1;
-}
-
-
-int read_timeout(int fd, char* buf, int len, int timeout_us)
-{
-	int ret, n;
-	struct pollfd  pfd = {fd, POLLIN, 0};  // fd, events, revents
-	int timeout = timeout_us > 0 ? timeout_us/1000 : -1;
-
-
-	/* CAVEAT: (from libc documentation)
-	 * Any signal will cause `select' to return immediately.  So if your
-	 * program uses signals, you can't rely on `select' to keep waiting
-	 * for the full time specified.  If you want to be sure of waiting
-	 * for a particular amount of time, you must check for `EINTR' and
-	 * repeat the `select' with a newly calculated timeout based on the
-	 * current time.  See the example below.
-	 *
-	 * The timeout is not recalculated here although it should, we keep
-	 * waiting as long as there are EINTR.
-	 */
-	do
-		ret = poll(&pfd, 1, timeout);
-	while (ret == -1 && errno == EINTR);                 // NOLINT
-	if (ret == -1) {
-		log_perror_err("read_timeout: poll() failed");
-		return -1;
-	}
-	if (ret == 0)
-		return 0;       /* timeout */
-	n = read(fd, buf, len);
-	if (n == -1) {
-		log_perror_err("read_timeout: read() failed");
-		return -1;
-	}
-	return n;
-}
-
-
-static int setup_frequency(void)
-{
-	__u32 freq;
-
-	if (!(curr_driver->features & LIRC_CAN_SET_REC_CARRIER))
-		return 1;
-	if (setup_min_freq == 0 || setup_max_freq == 0) {
-		setup_min_freq = DEFAULT_FREQ;
-		setup_max_freq = DEFAULT_FREQ;
-	}
-	if (curr_driver->features & LIRC_CAN_SET_REC_CARRIER_RANGE && setup_min_freq != setup_max_freq) {
-		if (curr_driver->drvctl_func(LIRC_SET_REC_CARRIER_RANGE, &setup_min_freq) == -1) {
-			log_error("could not set receive carrier");
-			log_perror_err(__func__);
-			return 0;
-		}
-		freq = setup_max_freq;
-	} else {
-		freq = (setup_min_freq + setup_max_freq) / 2;
-	}
-	if (curr_driver->drvctl_func(LIRC_SET_REC_CARRIER, &freq) == -1) {
-		log_error("could not set receive carrier");
-		log_perror_err(__func__);
-		return 0;
-	}
-	return 1;
-}
-
-
-static int setup_timeout(void)
-{
-	lirc_t val, min_timeout, max_timeout;
-	__u32 enable = 1;
-
-	if (!(curr_driver->features & LIRC_CAN_SET_REC_TIMEOUT))
-		return 1;
-
-	if (setup_max_space == 0)
-		return 1;
-	if (curr_driver->drvctl_func(LIRC_GET_MIN_TIMEOUT, &min_timeout) == -1
-	    || curr_driver->drvctl_func(LIRC_GET_MAX_TIMEOUT, &max_timeout) == -1)
-		return 0;
-	if (setup_max_gap >= min_timeout && setup_max_gap <= max_timeout) {
-		/* may help to detect end of signal faster */
-		val = setup_max_gap;
-	} else {
-		/* keep timeout to a minimum */
-		val = setup_max_space + 1;
-		if (val < min_timeout)
-			val = min_timeout;
-		else if (val > max_timeout)
-			/* maximum timeout smaller than maximum possible
-			 * space, hmm */
-			val = max_timeout;
-	}
-
-	if (curr_driver->drvctl_func(LIRC_SET_REC_TIMEOUT, &val) == -1) {
-		log_error("could not set timeout");
-		log_perror_err(__func__);
-		return 0;
-	}
-	curr_driver->drvctl_func(LIRC_SET_REC_TIMEOUT_REPORTS, &enable);
-	return 1;
-}
-
-
-static int setup_filter(void)
-{
-	int ret1, ret2;
-	lirc_t min_pulse_supported = 0, max_pulse_supported = 0;
-	lirc_t min_space_supported = 0, max_space_supported = 0;
-
-	if (!(curr_driver->features & LIRC_CAN_SET_REC_FILTER))
-		return 1;
-	if (curr_driver->drvctl_func(LIRC_GET_MIN_FILTER_PULSE,
-				     &min_pulse_supported) == -1 ||
-	    curr_driver->drvctl_func(LIRC_GET_MAX_FILTER_PULSE, &max_pulse_supported) == -1
-	    || curr_driver->drvctl_func(LIRC_GET_MIN_FILTER_SPACE, &min_space_supported) == -1
-	    || curr_driver->drvctl_func(LIRC_GET_MAX_FILTER_SPACE, &max_space_supported) == -1) {
-		log_error("could not get filter range");
-		log_perror_err(__func__);
-	}
-
-	if (setup_min_pulse > max_pulse_supported)
-		setup_min_pulse = max_pulse_supported;
-	else if (setup_min_pulse < min_pulse_supported)
-		setup_min_pulse = 0;    /* disable filtering */
-
-	if (setup_min_space > max_space_supported)
-		setup_min_space = max_space_supported;
-	else if (setup_min_space < min_space_supported)
-		setup_min_space = 0;    /* disable filtering */
-
-	ret1 = curr_driver->drvctl_func(LIRC_SET_REC_FILTER_PULSE, &setup_min_pulse);
-	ret2 = curr_driver->drvctl_func(LIRC_SET_REC_FILTER_SPACE, &setup_min_space);
-	if (ret1 == -1 || ret2 == -1) {
-		if (curr_driver->
-		    drvctl_func(LIRC_SET_REC_FILTER,
-				setup_min_pulse < setup_min_space ? &setup_min_pulse : &setup_min_space) == -1) {
-			log_error("could not set filter");
-			log_perror_err(__func__);
-			return 0;
-		}
-	}
-	return 1;
-}
-
-
-
-
-static int setup_hardware(void)
-{
-	int ret = 1;
-
-	if (curr_driver->fd != -1 && curr_driver->drvctl_func) {
-		if ((curr_driver->features & LIRC_CAN_SET_REC_CARRIER)
-		    || (curr_driver->features & LIRC_CAN_SET_REC_TIMEOUT)
-		    || (curr_driver->features & LIRC_CAN_SET_REC_FILTER)) {
-			(void)curr_driver->drvctl_func(LIRC_SETUP_START, NULL);
-			ret = setup_frequency() && setup_timeout()
-			      && setup_filter();
-			(void)curr_driver->drvctl_func(LIRC_SETUP_END, NULL);
-		}
-	}
-	return ret;
-}
-
-
-void config(void)
-{
-	FILE* fd;
-	struct ir_remote* config_remotes;
-	const char* filename = configfile;
-
-	if (filename == NULL)
-		filename = LIRCDCFGFILE;
-
-	if (free_remotes != NULL) {
-		log_error("cannot read config file");
-		log_error("old config is still in use");
-		return;
-	}
-	fd = fopen(filename, "r");
-	if (fd == NULL && errno == ENOENT && configfile == NULL) {
-		/* try old lircd.conf location */
-		int save_errno = errno;
-
-		fd = fopen(LIRCDOLDCFGFILE, "r");
-		if (fd != NULL)
-			filename = LIRCDOLDCFGFILE;
-		else
-			errno = save_errno;
-	}
-	if (fd == NULL) {
-		log_perror_err("could not open config file '%s'", filename);
-		return;
-	}
-	configfile = filename;
-	config_remotes = read_config(fd, configfile);
-	fclose(fd);
-	if (config_remotes == (void*)-1) {                     // NOLINT
-		log_error("reading of config file failed");
-	} else {
-		log_trace("config file read");
-		if (config_remotes == NULL) {
-			log_warn("config file %s contains no valid remote control definition",
-				  filename);
-		}
-		/* I cannot free the data structure
-		 * as they could still be in use */
-		free_remotes = remotes;
-		remotes = config_remotes;
-
-		get_frequency_range(remotes, &setup_min_freq, &setup_max_freq);
-		get_filter_parameters(remotes, &setup_max_gap, &setup_min_pulse, &setup_min_space, &setup_max_pulse,
-				      &setup_max_space);
-
-		setup_hardware();
-	}
-}
-
-
-void remove_client(int fd)
-{
-	int i;
-
-	for (i = 0; i < clin; i++) {
-		if (clis[i] == fd) {
-			shutdown(clis[i], 2);
-			close(clis[i]);
-			log_info("removed client");
-
-			clin--;
-			if (!useuinput && !use_hw() && curr_driver->deinit_func)
-				curr_driver->deinit_func();
-			for (; i < clin; i++)
-				clis[i] = clis[i + 1];
-			return;
-		}
-	}
-	log_trace("internal error in remove_client: no such fd");
-}
-
-
-void sigterm(int sig)
-{
-	/* all signals are blocked now */
-	if (term)
-		return;
-	term = 1;
-	termsig = sig;
-}
-
-void dosigterm(int sig)
-{
-	int i;
-
-	signal(SIGALRM, SIG_IGN);
-	log_notice("caught signal");
-
-	if (free_remotes != NULL)
-		free_config(free_remotes);
-	free_config(remotes);
-	repeat_remote = NULL;
-	for (i = 0; i < clin; i++) {
-		shutdown(clis[i], 2);
-		close(clis[i]);
-	}
-	if (do_shutdown)
-		shutdown(sockfd, 2);
-	close(sockfd);
-
-#if defined(__linux__)
-	if (uinputfd != -1) {
-		ioctl(uinputfd, UI_DEV_DESTROY);
-		close(uinputfd);
-		uinputfd = -1;
-	}
-#endif
-	if (listen_tcpip) {
-		shutdown(sockinet, 2);
-		close(sockinet);
-	}
-	fclose(pidf);
-	(void)unlink(pidfile);
-	if (curr_driver->close_func)
-		curr_driver->close_func();
-	if (use_hw() && curr_driver->deinit_func)
-		curr_driver->deinit_func();
-	if (curr_driver->close_func)
-		curr_driver->close_func();
-	lirc_log_close();
-	signal(sig, SIG_DFL);
-	if (sig == SIGUSR1)
-		exit(0);
-	raise(sig);
-}
-
-void sighup(int sig)
-{
-	hup = 1;
-}
-
-void dosighup(int sig)
-{
-	int i;
-
-	/* reopen logfile first */
-	if (lirc_log_reopen() != 0) {
-		/* can't print any error messagees */
-		dosigterm(SIGTERM);
-	}
-
-	config();
-
-	for (i = 0; i < clin; i++) {
-		if (!
-		    (write_socket_len(clis[i], protocol_string[P_BEGIN])
-		     && write_socket_len(clis[i], protocol_string[P_SIGHUP])
-		     && write_socket_len(clis[i], protocol_string[P_END]))) {
-			remove_client(clis[i]);
-			i--;
-		}
-	}
-	/* restart all connection timers */
-	for (i = 0; i < peern; i++) {
-		if (peers[i]->socket == -1) {
-			gettimeofday(&peers[i]->reconnect, NULL);
-			peers[i]->connection_failure = 0;
-		}
-	}
-}
-
-int setup_uinputfd(const char* name)
-{
-#if defined(__linux__)
-	int fd;
-	int key;
-	struct uinput_user_dev dev;
-
-	fd = open("/dev/input/uinput", O_RDWR);
-	if (fd == -1) {
-		fd = open("/dev/uinput", O_RDWR);
-		if (fd == -1) {
-			fd = open("/dev/misc/uinput", O_RDWR);
-			if (fd == -1) {
-				perrorf("could not open %s", "uinput");
-				return -1;
-			}
-		}
-	}
-	memset(&dev, 0, sizeof(dev));
-	strncpy(dev.name, name, sizeof(dev.name));
-	dev.name[sizeof(dev.name) - 1] = 0;
-	if (write(fd, &dev, sizeof(dev)) != sizeof(dev) || ioctl(fd, UI_SET_EVBIT, EV_KEY) != 0
-	    || ioctl(fd, UI_SET_EVBIT, EV_REP) != 0)
-		goto setup_error;
-
-	for (key = KEY_RESERVED; key <= KEY_UNKNOWN; key++)
-		if (ioctl(fd, UI_SET_KEYBIT, key) != 0)
-			goto setup_error;
-
-	if (ioctl(fd, UI_DEV_CREATE) != 0)
-		goto setup_error;
-	return fd;
-
-setup_error:
-	perrorf("could not setup %s", "uinput");
-	close(fd);
-#endif
-	return -1;
-}
-
-void nolinger(int sock)
-{
-	static struct linger linger = { 0, 0 };
-	int lsize = sizeof(struct linger);
-
-	setsockopt(sock, SOL_SOCKET, SO_LINGER,
-		   reinterpret_cast<void*>(&linger), lsize);
-}
-
-
-void drop_privileges(void)
-{
-	const char* user;
-	struct passwd* pw;
-	lirc_gid groups[32];
-	int group_cnt = sizeof(groups)/sizeof(gid_t);
-	char groupnames[256] = {0};
-	char buff[12];
-	int r;
-	int i;
-
-	if (getuid() != 0)
-		return;
-	user = options_getstring("lircd:effective-user");
-	if (user == NULL || strlen(user) == 0) {
-		log_warn("Running as root");
-		return;
-	}
-	pw = getpwnam(user);
-	if (pw == NULL) {
-		log_perror_warn("Illegal effective uid: %s", user);
-		return;
-	}
-	r = getgrouplist(user, pw->pw_gid, groups, &group_cnt);
-	if (r == -1) {
-		log_perror_warn("Cannot get supplementary groups");
-		return;
-	}
-	r = setgroups(group_cnt, (const gid_t*) groups);
-	if (r == -1) {
-		log_perror_warn("Cannot set supplementary groups");
-		return;
-	}
-	r = setgid(pw->pw_gid);
-	if (r == -1) {
-		log_perror_warn("Cannot set GID");
-		return;
-	}
-	r = setuid(pw->pw_uid);
-	if (r == -1) {
-		log_perror_warn("Cannot change UID");
-		return;
-	}
-	log_notice("Running as user %s", user);
-	for (i = 0; i < group_cnt; i += 1) {
-		snprintf(buff, 5, " %d", groups[i]);
-		strcat(groupnames, buff);
-	}
-	log_debug("Groups: [%d]:%s", pw->pw_gid, groupnames);
-}
-
-
-void add_client(int sock)
-{
-	int fd;
-	socklen_t clilen;
-	struct sockaddr client_addr;
-	int flags;
-
-	clilen = sizeof(client_addr);
-	fd = accept(sock, (struct sockaddr*)&client_addr, &clilen);
-	if (fd == -1) {
-		log_perror_err("accept() failed for new client");
-		dosigterm(SIGTERM);
-	}
-	if (clin >= MAX_CLIENTS) {
-		log_error("connection rejected (too many clients)");
-		shutdown(fd, 2);
-		close(fd);
-		return;
-	}
-	nolinger(fd);
-	flags = fcntl(fd, F_GETFL, 0);
-	if (flags != -1)
-		fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-	if (client_addr.sa_family == AF_UNIX) {
-		cli_type[clin] = CT_LOCAL;
-		log_notice("accepted new client on %s", lircdfile);
-	} else if (client_addr.sa_family == AF_INET) {
-		cli_type[clin] = CT_REMOTE;
-		log_notice("accepted new client from %s",
-			  inet_ntoa(((struct sockaddr_in*)&client_addr)->sin_addr));
-	} else {
-		cli_type[clin] = 0;     /* what? */
-	}
-	clis[clin] = fd;
-	if (!use_hw()) {
-		if (curr_driver->init_func) {
-			if (!curr_driver->init_func()) {
-				log_warn("Failed to initialize hardware");
-			/* Don't exit here, otherwise lirc
-			 * bails out, and lircd exits, making
-			 * it impossible to connect to when we
-			 * have a device actually plugged
-			 * in. */
-			} else {
-				setup_hardware();
-			}
-		}
-	}
-	clin++;
-}
-
-int add_peer_connection(const char* server_arg)
-{
-	char* sep;
-	struct servent* service;
-	char server[strlen(server_arg) + 1];
-
-	strncpy(server, server_arg, sizeof(server) - 1);
-
-	if (peern < MAX_PEERS) {
-		peers[peern] = (struct peer_connection*) malloc(sizeof(
-						    struct peer_connection));
-		if (peers[peern] != NULL) {
-			gettimeofday(&peers[peern]->reconnect, NULL);
-			peers[peern]->connection_failure = 0;
-			sep = strchr(server, ':');
-			if (sep != NULL) {
-				*sep = 0;
-				sep++;
-				peers[peern]->host = strdup(server);
-				service = getservbyname(sep, "tcp");
-				if (service) {
-					peers[peern]->port = ntohs(service->s_port);
-				} else {
-					long p;                                 // NOLINT
-					char* endptr;
-
-					p = strtol(sep, &endptr, 10);
-					if (!*sep || *endptr || p < 1 || p > USHRT_MAX) {
-						fprintf(stderr, "%s: bad port number \"%s\"\n", progname, sep);
-						return 0;
-					}
-					peers[peern]->port = (unsigned short int)p;             // NOLINT
-				}
-			} else {
-				peers[peern]->host = strdup(server);
-				peers[peern]->port = LIRC_INET_PORT;
-			}
-			if (peers[peern]->host == NULL)
-				fprintf(stderr, "%s: out of memory\n", progname);
-		} else {
-			fprintf(stderr, "%s: out of memory\n", progname);
-			return 0;
-		}
-		peers[peern]->socket = -1;
-		peern++;
-		return 1;
-	}
-	fprintf(stderr, "%s: too many client connections\n", progname);
-	return 0;
-}
-
-
-void connect_to_peer(peer_connection* peer)
-{
-	int r;
-	char service[64];
-	struct addrinfo* addrinfos;
-	struct addrinfo* a;
-	int enable = 1;
-
-	snprintf(service, sizeof(service), "%d", peer->port);
-	peer->socket = socket(AF_INET, SOCK_STREAM, 0);
-	r = getaddrinfo(peer->host, service, NULL, &addrinfos);
-	if (r != 0) {
-		log_perror_err("Name lookup failure connecting to %s",
-			       peer->host);
-		goto errexit;
-	}
-	(void)setsockopt(peer->socket,
-			 SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
-	for (a = addrinfos; a != NULL; a = a->ai_next) {
-		r = connect(peer->socket, a->ai_addr, a->ai_addrlen);
-		if (r >= 0)
-			break;
-	}
-	freeaddrinfo(addrinfos);
-	if (r == -1) {
-		log_perror_err("Cannot connect to %s", peer->host);
-		goto errexit;
-	}
-	log_notice("Connected to %s", peer->host);
-	peer->connection_failure = 0;
-	return;
-
-errexit:
-	peer->connection_failure++;
-	gettimeofday(&peer->reconnect, NULL);
-	peer->reconnect.tv_sec += 5 * peer->connection_failure;
-	close(peer->socket);
-	peer->socket = -1;
-	return;
-}
-
-
-void connect_to_peers(void)
-{
-	int i;
-	struct timeval now;
-
-	gettimeofday(&now, NULL);
-	for (i = 0; i < peern; i++) {
-		if (peers[i]->socket != -1)
-			continue;
-		/* some timercmp() definitions don't work with <= */
-		if (timercmp(&peers[i]->reconnect, &now, <)) {
-			connect_to_peer(peers[i]);
-		}
-	}
-}
-
-
-int get_peer_message(struct peer_connection* peer)
-{
-	int length;
-	char buffer[PACKET_SIZE + 1];
-	char* end;
-	int i;
-
-	length = read_timeout(peer->socket, buffer, PACKET_SIZE, 0);
-	if (length) {
-		buffer[length] = 0;
-		end = strrchr(buffer, '\n');
-		if (end == NULL || end[1] != 0) {
-			log_error("bad send packet: \"%s\"", buffer);
-			/* remove clients that behave badly */
-			return 0;
-		}
-		end++;          /* include the \n */
-		end[0] = 0;
-		length = strlen(buffer);
-		log_trace("received peer message: \"%s\"", buffer);
-		for (i = 0; i < clin; i++) {
-			/* don't relay messages to remote clients */
-			if (cli_type[i] == CT_REMOTE)
-				continue;
-			log_trace("writing to client %d", i);
-			if (write_socket(clis[i], buffer, length) < length) {
-				remove_client(clis[i]);
-				i--;
-			}
-		}
-	}
-
-	if (length == 0)        /* EOF: connection closed by client */
-		return 0;
-	return 1;
-}
-
-void start_server(mode_t permission, int nodaemon, loglevel_t loglevel)
-{
-	struct sockaddr_un serv_addr;
-	struct sockaddr_in serv_addr_in;
-	struct stat s;
-	int ret;
-	int new_socket = 1;
-	int fd;
-
-#ifdef HAVE_SYSTEMD
-	int n;
-#endif
-
-	lirc_log_open("lircd", nodaemon, loglevel);
-
-	/* create pid lockfile in /var/run */
-	fd = open(pidfile, O_RDWR | O_CREAT, 0644);
-	if (fd > 0)
-		pidf = fdopen(fd, "r+");
-	if (fd == -1 || pidf == NULL) {
-		perrorf("can't open or create %s", pidfile);
-		exit(EXIT_FAILURE);
-	}
-	if (flock(fd, LOCK_EX | LOCK_NB) == -1) {
-		pid_t otherpid;
-
-		if (fscanf(pidf, "%d\n", &otherpid) > 0) {
-			fprintf(stderr, "%s: there seems to already be a lircd process with pid %d\n", progname,
-				otherpid);
-			fprintf(stderr, "%s: otherwise delete stale lockfile %s\n", progname, pidfile);
-		} else {
-			fprintf(stderr, "%s: invalid %s encountered\n", progname, pidfile);
-		}
-		exit(EXIT_FAILURE);
-	}
-	(void)fcntl(fd, F_SETFD, FD_CLOEXEC);
-	rewind(pidf);
-	(void)fprintf(pidf, "%d\n", getpid());
-	(void)fflush(pidf);
-	if (ftruncate(fileno(pidf), ftell(pidf)) != 0)
-		log_perror_warn("lircd: ftruncate()");
-	ir_remote_init(options_getboolean("lircd:dynamic-codes"));
-
-	/* create socket */
-	sockfd = -1;
-	do_shutdown = 0;
-#ifdef HAVE_SYSTEMD
-	n = sd_listen_fds(0);
-	if (n > 1) {
-		fprintf(stderr, "Too many file descriptors received.\n");
-		goto start_server_failed0;
-	} else if (n == 1) {
-		sockfd = SD_LISTEN_FDS_START + 0;
-	}
-#endif
-	if (sockfd == -1) {
-		sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-		if (sockfd == -1) {
-			perror("Could not create socket");
-			goto start_server_failed0;
-		}
-		do_shutdown = 1;
-
-		/*
-		 * get owner, permissions, etc.
-		 * so new socket can be the same since we
-		 * have to delete the old socket.
-		 */
-		ret = stat(lircdfile, &s);
-		if (ret == -1 && errno != ENOENT) {
-			perrorf("Could not get file information for %s\n",
-				lircdfile);
-			goto start_server_failed1;
-		}
-		if (ret != -1) {
-			new_socket = 0;
-			ret = unlink(lircdfile);
-			if (ret == -1) {
-				perrorf("Could not delete %s", lircdfile);
-				goto start_server_failed1;
-			}
-		}
-
-		serv_addr.sun_family = AF_UNIX;
-		strcpy(serv_addr.sun_path, lircdfile);
-		if (bind(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1) {
-			perrorf("Could not assign address to socket%s", lircdfile);
-			goto start_server_failed1;
-		}
-
-		if (new_socket ? chmod(lircdfile, permission)
-		    : (chmod(lircdfile, s.st_mode) == -1 || chown(lircdfile, s.st_uid, s.st_gid) == -1)
-		    ) {
-			perrorf("Could not set file permissions on %s", lircdfile);
-			goto start_server_failed1;
-		}
-
-		listen(sockfd, 3);
-	}
-	nolinger(sockfd);
-
-	if (useuinput)
-		uinputfd = setup_uinputfd(progname);
-	drop_privileges();
-	if (listen_tcpip) {
-		int enable = 1;
-
-		/* create socket */
-		sockinet = socket(PF_INET, SOCK_STREAM, IPPROTO_IP);
-		if (sockinet == -1) {
-			perror("Could not create TCP/IP socket");
-			goto start_server_failed1;
-		}
-		(void)setsockopt(sockinet, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
-		serv_addr_in.sin_family = AF_INET;
-		serv_addr_in.sin_addr = address;
-		serv_addr_in.sin_port = htons(port);
-
-		if (bind(sockinet, (struct sockaddr*)&serv_addr_in, sizeof(serv_addr_in)) == -1) {
-			perror("could not assign address to socket");
-			goto start_server_failed2;
-		}
-
-		listen(sockinet, 3);
-		nolinger(sockinet);
-	}
-	log_trace("started server socket");
-	return;
-
-start_server_failed2:
-	if (listen_tcpip)
-		close(sockinet);
-start_server_failed1:
-	close(sockfd);
-start_server_failed0:
-	fclose(pidf);
-	(void)unlink(pidfile);
-	exit(EXIT_FAILURE);
-}
-
-
-void daemonize(void)
-{
-	if (daemon(0, 0) == -1) {
-		log_perror_err("daemon() failed");
-		dosigterm(SIGTERM);
-	}
-	umask(0);
-	rewind(pidf);
-	fprintf(pidf, "%d\n", getpid());
-	fflush(pidf);
-	if (ftruncate(fileno(pidf), ftell(pidf)) != 0)
-		log_perror_warn("lircd: ftruncate()");
-	daemonized = 1;
-}
-
-
-int send_success(int fd, char* message)
-{
-	log_debug("Sending success");
-	if (!
-	    (write_socket_len(fd, protocol_string[P_BEGIN]) && write_socket_len(fd, message)
-	     && write_socket_len(fd, protocol_string[P_SUCCESS]) && write_socket_len(fd, protocol_string[P_END])))
-		return 0;
-	return 1;
-}
-
-
-int send_error(int fd, char* message, const char* format_str, ...)
-{
-	log_debug("Sending error");
-	char lines[4], buffer[PACKET_SIZE + 1];
-	int i, n, len;
-	va_list ap;
-	char* s1;
-	char* s2;
-
-	va_start(ap, format_str);
-	vsprintf(buffer, format_str, ap);
-	va_end(ap);
-
-	s1 = strrchr(message, '\n');
-	s2 = strrchr(buffer, '\n');
-	if (s1 != NULL)
-		s1[0] = 0;
-	if (s2 != NULL)
-		s2[0] = 0;
-	log_error("error processing command: %s", message);
-	log_error("%s", buffer);
-	if (s1 != NULL)
-		s1[0] = '\n';
-	if (s2 != NULL)
-		s2[0] = '\n';
-
-	n = 0;
-	len = strlen(buffer);
-	for (i = 0; i < len; i++)
-		if (buffer[i] == '\n')
-			n++;
-	sprintf(lines, "%d\n", n);
-
-	if (!(write_socket_len(fd, protocol_string[P_BEGIN]) &&
-	      write_socket_len(fd, message) && write_socket_len(fd, protocol_string[P_ERROR])
-	      && write_socket_len(fd, protocol_string[P_DATA]) && write_socket_len(fd, lines)
-	      && write_socket_len(fd, buffer) && write_socket_len(fd, protocol_string[P_END])))
-		return 0;
-	return 1;
-}
-
-
-void sigalrm(int sig)
-{
-	alrm = 1;
-}
-
-
-static void schedule_repeat_timer(struct timespec* last)
-{
-	unsigned long secs;			// NOLINT
-	lirc_t usecs, gap, diff;
-	struct timespec current;
-	struct itimerval repeat_timer;
-	gap = send_buffer_sum() + repeat_remote->min_remaining_gap;
-	clock_gettime(CLOCK_MONOTONIC, &current);
-	secs = current.tv_sec - last->tv_sec;
-	diff = 1000000 * secs + (current.tv_nsec - last->tv_nsec) / 1000;
-	usecs = (diff < gap ? gap - diff : 0);
-	if (usecs < 10)
-		usecs = 10;
-	log_trace("alarm in %lu usecs", (unsigned long)usecs);              // NOLINT
-	repeat_timer.it_value.tv_sec = 0;
-	repeat_timer.it_value.tv_usec = usecs;
-	repeat_timer.it_interval.tv_sec = 0;
-	repeat_timer.it_interval.tv_usec = 0;
-
-	setitimer(ITIMER_REAL, &repeat_timer, NULL);
-}
-
-void dosigalrm(int sig)
-{
-	if (repeat_remote->last_code != repeat_code) {
-		/* we received a different code from the original
-		 * remote control we could repeat the wrong code so
-		 * better stop repeating */
-		if (repeat_fd != -1)
-			send_error(repeat_fd, repeat_message, "repeating interrupted\n");
-
-		repeat_remote = NULL;
-		repeat_code = NULL;
-		repeat_fd = -1;
-		if (repeat_message != NULL) {
-			free(repeat_message);
-			repeat_message = NULL;
-		}
-		if (!use_hw() && curr_driver->deinit_func)
-			curr_driver->deinit_func();
-		return;
-	}
-	if (repeat_code->next == NULL
-	    || (repeat_code->transmit_state != NULL && repeat_code->transmit_state->next == NULL))
-		repeat_remote->repeat_countdown--;
-	struct timespec before_send;
-	clock_gettime(CLOCK_MONOTONIC, &before_send);
-	if (send_ir_ncode(repeat_remote, repeat_code, 1) && repeat_remote->repeat_countdown > 0) {
-		schedule_repeat_timer(&before_send);
-		return;
-	}
-	repeat_remote = NULL;
-	repeat_code = NULL;
-	if (repeat_fd != -1) {
-		send_success(repeat_fd, repeat_message);
-		free(repeat_message);
-		repeat_message = NULL;
-		repeat_fd = -1;
-	}
-	if (!use_hw() && curr_driver->deinit_func)
-		curr_driver->deinit_func();
-}
-
-
-int parse_rc(int fd,
-	     char* message, char* arguments,
-	     struct ir_remote** remote, struct ir_ncode** code,
-	     unsigned int* reps, int n, int* err)
-{
-	char* name = NULL;
-	char* command = NULL;
-	char* repeats;
-	char* end_ptr = NULL;
-
-	*remote = NULL;
-	*code = NULL;
-	*err = 1;
-	if (arguments == NULL)
-		goto arg_check;
-
-	name = strtok(arguments, WHITE_SPACE);
-	if (name == NULL)
-		goto arg_check;
-	*remote = get_ir_remote(remotes, name);
-	if (*remote == NULL)
-		return send_error(fd, message, "unknown remote: \"%s\"\n", name);
-	command = strtok(NULL, WHITE_SPACE);
-	if (command == NULL)
-		goto arg_check;
-	*code = get_code_by_name(*remote, command);
-	if (*code == NULL)
-		return send_error(fd, message, "unknown command: \"%s\"\n", command);
-	if (reps != NULL) {
-		repeats = strtok(NULL, WHITE_SPACE);
-		if (repeats != NULL) {
-			*reps = strtol(repeats, &end_ptr, 10);
-			if (*end_ptr || *reps < 0)
-				return send_error(fd, message, "bad send packet (reps/eol)\n");
-			if (*reps > repeat_max)
-				return send_error
-					       (fd, message, "too many repeats: \"%d\" > \"%u\"\n", *reps, repeat_max);
-		} else {
-			*reps = -1;
-		}
-	}
-	if (strtok(NULL, WHITE_SPACE) != NULL)
-		return send_error(fd, message, "bad send packet (trailing ws)\n");
-arg_check:
-	if (n > 0 && *remote == NULL)
-		return send_error(fd, message, "remote missing\n");
-	if (n > 1 && *code == NULL)
-		return send_error(fd, message, "code missing\n");
-	*err = 0;
-	return 1;
-}
-
-
-int send_remote_list(int fd, char* message)
-{
-	char buffer[PACKET_SIZE + 1];
-	struct ir_remote* all;
-	int n, len;
-
-	n = 0;
-	all = remotes;
-	while (all) {
-		n++;
-		all = all->next;
-	}
-
-	if (!
-	    (write_socket_len(fd, protocol_string[P_BEGIN]) && write_socket_len(fd, message)
-	     && write_socket_len(fd, protocol_string[P_SUCCESS])))
-		return 0;
-
-	if (n == 0)
-		return write_socket_len(fd, protocol_string[P_END]);
-	sprintf(buffer, "%d\n", n);
-	if (!(write_socket_len(fd, protocol_string[P_DATA]) && write_socket_len(fd, buffer)))
-		return 0;
-
-	all = remotes;
-	while (all) {
-		len = snprintf(buffer, PACKET_SIZE + 1, "%s\n", all->name);
-		if (len >= PACKET_SIZE + 1)
-			len = sprintf(buffer, "name_too_long\n");
-		if (write_socket(fd, buffer, len) < len)
-			return 0;
-		all = all->next;
-	}
-	return write_socket_len(fd, protocol_string[P_END]);
-}
-
-int send_remote(int fd, char* message, struct ir_remote* remote)
-{
-	struct ir_ncode* codes;
-	char buffer[PACKET_SIZE + 1];
-	int n, len;
-
-	n = 0;
-	codes = remote->codes;
-	if (codes != NULL) {
-		while (codes->name != NULL) {
-			n++;
-			codes++;
-		}
-	}
-
-	if (!
-	    (write_socket_len(fd, protocol_string[P_BEGIN]) && write_socket_len(fd, message)
-	     && write_socket_len(fd, protocol_string[P_SUCCESS])))
-		return 0;
-	if (n == 0)
-		return write_socket_len(fd, protocol_string[P_END]);
-	sprintf(buffer, "%d\n", n);
-	if (!(write_socket_len(fd, protocol_string[P_DATA]) && write_socket_len(fd, buffer)))
-		return 0;
-
-	codes = remote->codes;
-	while (codes->name != NULL) {
-		// NOLINTNEXTLINE
-		len = snprintf(buffer, PACKET_SIZE, "%016llx %s\n",
-			      (unsigned long long)codes->code, codes->name);    //NOLINT
-		if (len >= PACKET_SIZE + 1)
-			len = sprintf(buffer, "code_too_long\n");
-		if (write_socket(fd, buffer, len) < len)
-			return 0;
-		codes++;
-	}
-	return write_socket_len(fd, protocol_string[P_END]);
-}
-
-int send_name(int fd, char* message, struct ir_ncode* code)
-{
-	char buffer[PACKET_SIZE + 1];
-	int len;
-
-	if (!
-	    (write_socket_len(fd, protocol_string[P_BEGIN]) && write_socket_len(fd, message)
-	     && write_socket_len(fd, protocol_string[P_SUCCESS]) && write_socket_len(fd, protocol_string[P_DATA])))
-		return 0;
-	// NOLINTNEXTLINE
-	len = snprintf(buffer, PACKET_SIZE, "1\n%016llx %s\n", (unsigned long long)code->code, code->name);
-	if (len >= PACKET_SIZE + 1)
-		len = sprintf(buffer, "1\ncode_too_long\n");
-	if (write_socket(fd, buffer, len) < len)
-		return 0;
-	return write_socket_len(fd, protocol_string[P_END]);
-}
-
-static int list(int fd, char* message, char* arguments)
-{
-	struct ir_remote* remote;
-	struct ir_ncode* code;
-	int err;
-
-	if (parse_rc(fd, message, arguments, &remote, &code, 0, 0, &err) == 0)
-		return 0;
-	if (err)
-		return 1;
-
-	if (remote == NULL)
-		return send_remote_list(fd, message);
-	if (code == NULL)
-		return send_remote(fd, message, remote);
-	return send_name(fd, message, code);
-}
-
-static int set_transmitters(int fd, char* message, char* arguments)
-{
-	char* next_arg = NULL;
-	char* end_ptr;
-	__u32 next_tx_int = 0;
-	__u32 next_tx_hex = 0;
-	__u32 channels = 0;
-	int retval = 0;
-	unsigned int i;
-
-	if (arguments == NULL)
-		goto string_error;
-	if (curr_driver->send_mode == 0)
-		return send_error(fd, message, "hardware does not support sending\n");
-	if (curr_driver->drvctl_func == NULL || !(curr_driver->features & LIRC_CAN_SET_TRANSMITTER_MASK))
-		return send_error(fd, message, "hardware does not support multiple transmitters\n");
-
-	next_arg = strtok(arguments, WHITE_SPACE);
-	if (next_arg == NULL)
-		goto string_error;
-	do {
-		next_tx_int = strtoul(next_arg, &end_ptr, 10);
-		if (*end_ptr || next_tx_int == 0 || (next_tx_int == ULONG_MAX && errno == ERANGE))
-			return send_error(fd, message, "invalid argument\n");
-		if (next_tx_int > MAX_TX)
-			return send_error(fd, message, "cannot support more than %d transmitters\n", MAX_TX);
-		next_tx_hex = 1;
-		for (i = 1; i < next_tx_int; i++)
-			next_tx_hex = next_tx_hex << 1;
-		channels |= next_tx_hex;
-	} while ((next_arg = strtok(NULL, WHITE_SPACE)) != NULL);
-
-	retval = curr_driver->drvctl_func(LIRC_SET_TRANSMITTER_MASK, &channels);
-	if (retval < 0)
-		return send_error(fd, message, "error - could not set transmitters\n");
-	if (retval > 0)
-		return send_error(fd, message, "error - maximum of %d transmitters\n", retval);
-	return send_success(fd, message);
-
-string_error:
-	return send_error(fd, message, "no arguments given\n");
-}
-
-
-void broadcast_message(const char* message)
-{
-	int len, i;
-
-	len = strlen(message);
-
-	for (i = 0; i < clin; i++) {
-		log_trace("writing to client %d: %s", i, message);
-		if (write_socket(clis[i], message, len) < len) {
-			remove_client(clis[i]);
-			i--;
-		}
-	}
-}
-
-
-static int simulate(int fd, char* message, char* arguments)
-{
-	int i;
-	char* sim;
-	char* s;
-	char* space;
-
-	log_debug("simulate: enter");
-
-	if (!allow_simulate)
-		return send_error(fd, message, "SIMULATE command is disabled\n");
-	if (arguments == NULL)
-		return send_error(fd, message, "no arguments given\n");
-
-	s = arguments;
-	for (i = 0; i < 16; i++, s++)
-		if (!isxdigit(*s))
-			goto simulate_invalid_event;
-	if (*s != ' ')
-		goto simulate_invalid_event;
-	s++;
-	if (*s == ' ')
-		goto simulate_invalid_event;
-	for (; *s != ' '; s++)
-		if (!isxdigit(*s))
-			goto simulate_invalid_event;
-	s++;
-	space = strchr(s, ' ');
-	if (space == NULL || space == s)
-		goto simulate_invalid_event;
-	s = space + 1;
-	space = strchr(s, ' ');
-	if (strlen(s) == 0 || space != NULL)
-		goto simulate_invalid_event;
-
-	sim = reinterpret_cast<char*>(malloc(strlen(arguments) + 1 + 1));
-	if (sim == NULL)
-		return send_error(fd, message, "out of memory\n");
-	strcpy(sim, arguments);
-	strcat(sim, "\n");
-	broadcast_message(sim);
-	free(sim);
-
-	return send_success(fd, message);
-simulate_invalid_event:
-	return send_error(fd, message, "invalid event\n");
-}
-
-static int send_once(int fd, char* message, char* arguments)
-{
-	return send_core(fd, message, arguments, 1);
-}
-
-static int send_start(int fd, char* message, char* arguments)
-{
-	return send_core(fd, message, arguments, 0);
-}
-
-static int send_core(int fd, char* message, char* arguments, int once)
-{
-	struct ir_remote* remote;
-	struct ir_ncode* code;
-	unsigned int reps;
-	int err;
-
-	log_debug("Sending once, msg: %s, args: %s, once: %d",
-		  message, arguments, once);
-	if (curr_driver->send_mode == 0)
-		return send_error(fd, message, "hardware does not support sending\n");
-
-	if (parse_rc(fd, message, arguments, &remote, &code, once ? &reps : NULL, 2, &err) == 0)
-		return 0;
-	if (err)
-		return 1;
-
-	if (once) {
-		if (repeat_remote != NULL)
-			return send_error(fd, message, "busy: repeating\n");
-	} else {
-		if (repeat_remote != NULL)
-			return send_error(fd, message, "already repeating\n");
-	}
-	if (has_toggle_mask(remote))
-		remote->toggle_mask_state = 0;
-	if (has_toggle_bit_mask(remote))
-		remote->toggle_bit_mask_state = (remote->toggle_bit_mask_state ^ remote->toggle_bit_mask);
-	code->transmit_state = NULL;
-	struct timespec before_send;
-	clock_gettime(CLOCK_MONOTONIC, &before_send);
-	if (!send_ir_ncode(remote, code, 1))
-		return send_error(fd, message, "transmission failed\n");
-	gettimeofday(&remote->last_send, NULL);
-	remote->last_code = code;
-	if (once)
-		remote->repeat_countdown = max(remote->repeat_countdown, reps);
-	else
-		/* you've been warned, now we have a limit */
-		remote->repeat_countdown = repeat_max;
-	if (remote->repeat_countdown > 0 || code->next != NULL) {
-		repeat_remote = remote;
-		repeat_code = code;
-		if (once) {
-			repeat_message = strdup(message);
-			if (repeat_message == NULL) {
-				repeat_remote = NULL;
-				repeat_code = NULL;
-				return send_error(fd, message, "out of memory\n");
-			}
-			repeat_fd = fd;
-		} else if (!send_success(fd, message)) {
-			repeat_remote = NULL;
-			repeat_code = NULL;
-			return 0;
-		}
-		schedule_repeat_timer(&before_send);
-		return 1;
-	} else {
-		return send_success(fd, message);
-	}
-}
-
-static int send_stop(int fd, char* message, char* arguments)
-{
-	struct ir_remote* remote;
-	struct ir_ncode* code;
-	struct itimerval repeat_timer;
-	int err;
-
-	if (parse_rc(fd, message, arguments, &remote, &code, 0, 0, &err) == 0)
-		return 0;
-	if (err)
-		return 1;
-
-	if (repeat_remote && repeat_code) {
-		int done;
-
-		if (remote && strcasecmp(remote->name, repeat_remote->name) != 0)
-			return send_error(fd, message, "specified remote does not match\n");
-		if (code && strcasecmp(code->name, repeat_code->name) != 0)
-			return send_error(fd, message, "specified code does not match\n");
-
-		done = repeat_max - repeat_remote->repeat_countdown;
-		if (done < repeat_remote->min_repeat) {
-			/* we still have some repeats to do */
-			repeat_remote->repeat_countdown = repeat_remote->min_repeat - done;
-			return send_success(fd, message);
-		}
-		repeat_timer.it_value.tv_sec = 0;
-		repeat_timer.it_value.tv_usec = 0;
-		repeat_timer.it_interval.tv_sec = 0;
-		repeat_timer.it_interval.tv_usec = 0;
-
-		setitimer(ITIMER_REAL, &repeat_timer, NULL);
-
-		repeat_remote->toggle_mask_state = 0;
-		repeat_remote = NULL;
-		repeat_code = NULL;
-		/* clin!=0, so we don't have to deinit hardware */
-		alrm = 0;
-		return send_success(fd, message);
-	} else {
-		return send_error(fd, message, "not repeating\n");
-	}
-}
-
-
-static int version(int fd, char* message, char* arguments)
-{
-	char buffer[PACKET_SIZE + 1];
-
-	sprintf(buffer, "1\n%s\n", VERSION);
-	if (!(write_socket_len(fd, protocol_string[P_BEGIN]) &&
-	      write_socket_len(fd, message) && write_socket_len(fd, protocol_string[P_SUCCESS])
-	      && write_socket_len(fd, protocol_string[P_DATA]) && write_socket_len(fd, buffer)
-	      && write_socket_len(fd, protocol_string[P_END])))
-		return 0;
-	return 1;
-}
-
-
-static int drv_option(int fd, char* message, char* arguments)
-{
-	struct option_t option;
-	int r;
-
-	r = sscanf(arguments, "%32s %64s", option.key, option.value);
-	if (r != 2) {
-		return send_error(fd, message,
-				  "Illegal argument (protocol error): %s",
-				  arguments);
-	}
-	r = curr_driver->drvctl_func(DRVCTL_SET_OPTION,
-				     reinterpret_cast<void*>(&option));
-	if (r != 0) {
-		log_warn("Cannot set driver option");
-		return send_error(fd, message,
-				  "Cannot set driver option %d", errno);
-	}
-	return send_success(fd, message);
-}
-
-
-static int set_inputlog(int fd, char* message, char* arguments)
-{
-	char buff[128];
-	FILE* f;
-	int r;
-
-	r = sscanf(arguments, "%128s", buff);
-	if (r != 1) {
-		return send_error(fd, message,
-				  "Illegal argument (protocol error): %s",
-				  arguments);
-	}
-	if (strcasecmp(buff, "null") == 0) {
-		rec_buffer_set_logfile(NULL);
-		return send_success(fd, message);
-	}
-	f = fopen(buff, "w");
-	if (f == NULL) {
-		log_warn("Cannot open input logfile: %s", buff);
-		return send_error(fd, message,
-				  "Cannot open input logfile: %s (errno: %d)",
-				  buff, errno);
-	}
-	rec_buffer_set_logfile(f);
-	return send_success(fd, message);
-}
 
 
 int get_command(int fd)
@@ -1763,20 +260,25 @@ int get_command(int fd)
 			goto skip;
 		}
 		for (i = 0; directives[i].name != NULL; i++) {
-			if (strcasecmp(directive, directives[i].name) == 0) {
-				if (!directives[i].function(fd, backup, strtok(NULL, "")))
+			if (strcasecmp(directive,
+				       directives[i].name) == 0) {
+				if (!directives[i].function(fd,
+							    backup,
+							    strtok(NULL, "")))
 					return 0;
 				goto skip;
 			}
 		}
-
-		if (!send_error(fd, backup, "unknown directive: \"%s\"\n", directive))
+		if (!send_error(fd, backup,
+				"unknown directive: \"%s\"\n", directive))
 			return 0;
 skip:
 		if (length > packet_length) {
 			int new_length;
 
-			memmove(buffer, buffer + packet_length, length - packet_length + 1);
+			memmove(buffer,
+				buffer + packet_length,
+				length - packet_length + 1);
 			if (strchr(buffer, '\n') == NULL) {
 				new_length =
 					read_timeout(fd, buffer + length - packet_length,
@@ -1797,713 +299,1209 @@ skip:
 	return 1;
 }
 
-void input_message(const char* message, const char* remote_name, const char* button_name, int reps, int release)
+
+/*
+ * Mark client as as expecting command data from backend, and backend to
+ * return data to client socket. Client == 0 implies the local client which
+ * only is marked at the backend side.
+ */
+static bool connect_fds(int client_fd, int backend_fd)
 {
-	const char* release_message;
-	const char* release_remote_name;
-	const char* release_button_name;
-
-	release_message = check_release_event(&release_remote_name, &release_button_name);
-	if (release_message)
-		input_message(release_message, release_remote_name, release_button_name, 0, 1);
-
-	if (!release || userelease)
-		broadcast_message(message);
-
-#ifdef __linux__
-	if (uinputfd == -1 || reps >= 2)
-		return;
-
-	linux_input_code input_code;
-
-	if (get_input_code(button_name, &input_code) != -1) {
-		struct input_event event;
-
-		memset(&event, 0, sizeof(event));
-		event.type = EV_KEY;
-		event.code = input_code;
-		event.value = release ? 0 : (reps > 0 ? 2 : 1);
-		if (write(uinputfd, &event, sizeof(event)) != sizeof(event)) {
-			log_perror_err("writing to uinput failed");
-		}
-
-		/* Need to write sync event */
-		memset(&event, 0, sizeof(event));
-		event.type = EV_SYN;
-		event.code = SYN_REPORT;
-		event.value = 0;
-		if (write(uinputfd, &event, sizeof(event)) != sizeof(event)) {
-			log_perror_err("writing EV_SYN to uinput failed");
-		}
-	} else {
-		log_debug(
-			  "Dropping non-standard symbol %s in uinput mode",
-			  button_name == NULL ? "Null" : button_name);
+	log_debug("Connecting client %d to %d", client_fd, backend_fd);
+	ItemIterator backend = fdList->find_fd(backend_fd);
+	if (backend == fdList-> end())
+		return false;
+	if (client_fd == 0) {
+		backend->connected_to = 0;
+		return true;
 	}
-#endif
+	ItemIterator client = fdList->find_fd(client_fd);
+	backend->connected_to = client_fd;
+	if (client == fdList-> end())
+		return false;
+	client->connected_to = backend_fd;
+	client->ticks = COMMAND_TIMEOUT_TICKS;
+	return true;
 }
 
 
-
-
-void free_old_remotes(void)
+/** Dissolve relation created by connect() given any of the two parties. */
+static bool disconnect_fds(int fd)
 {
-	struct ir_remote* scan_remotes;
-	struct ir_remote* found;
-	struct ir_ncode* code;
-	const char* release_event;
-	const char* release_remote_name;
-	const char* release_button_name;
+	ItemIterator me;
+	ItemIterator other;
 
-	if (get_decoding() == free_remotes)
-		return;
-
-	release_event = release_map_remotes(free_remotes, remotes, &release_remote_name, &release_button_name);
-	if (release_event != NULL)
-		input_message(release_event, release_remote_name, release_button_name, 0, 1);
-	if (last_remote != NULL) {
-		if (is_in_remotes(free_remotes, last_remote)) {
-			log_info("last_remote found");
-			found = get_ir_remote(remotes, last_remote->name);
-			if (found != NULL) {
-				code = get_code_by_name(found, last_remote->last_code->name);
-				if (code != NULL) {
-					found->reps = last_remote->reps;
-					found->toggle_bit_mask_state = last_remote->toggle_bit_mask_state;
-					found->min_remaining_gap = last_remote->min_remaining_gap;
-					found->max_remaining_gap = last_remote->max_remaining_gap;
-					found->last_send = last_remote->last_send;
-					last_remote = found;
-					last_remote->last_code = code;
-					log_info("mapped last_remote");
-				}
-			}
-		} else {
-			last_remote = NULL;
-		}
+	log_debug("Disconnecting : %d", fd);
+	me = fdList->find_fd(fd);
+	if (me == fdList->end())
+		return false;
+	if (me->connected_to == 0) {
+		/** Local lircd client is not in list. */
+		me->connected_to = -1;
+		return true;
 	}
-	/* check if last config is still needed */
-	found = NULL;
-	if (repeat_remote != NULL) {
-		scan_remotes = free_remotes;
-		while (scan_remotes != NULL) {
-			if (repeat_remote == scan_remotes) {
-				found = repeat_remote;
-				break;
-			}
-			scan_remotes = scan_remotes->next;
-		}
-		if (found != NULL) {
-			found = get_ir_remote(remotes, repeat_remote->name);
-			if (found != NULL) {
-				code = get_code_by_name(found, repeat_code->name);
-				if (code != NULL) {
-					struct itimerval repeat_timer;
-
-					repeat_timer.it_value.tv_sec = 0;
-					repeat_timer.it_value.tv_usec = 0;
-					repeat_timer.it_interval.tv_sec = 0;
-					repeat_timer.it_interval.tv_usec = 0;
-
-					found->last_code = code;
-					found->last_send = repeat_remote->last_send;
-					found->toggle_bit_mask_state = repeat_remote->toggle_bit_mask_state;
-					found->min_remaining_gap = repeat_remote->min_remaining_gap;
-					found->max_remaining_gap = repeat_remote->max_remaining_gap;
-
-					setitimer(ITIMER_REAL, &repeat_timer, &repeat_timer);
-					/* "atomic" (shouldn't be necessary any more) */
-					repeat_remote = found;
-					repeat_code = code;
-					/* end "atomic" */
-					setitimer(ITIMER_REAL, &repeat_timer, NULL);
-					found = NULL;
-				}
-			} else {
-				found = repeat_remote;
-			}
-		}
-	}
-	if (found == NULL && get_decoding() != free_remotes) {
-		free_config(free_remotes);
-		free_remotes = NULL;
-	} else {
-		log_trace("free_remotes still in use");
-	}
+	me->ticks = -1;
+	if (me->connected_to == -1)
+		return false;
+	other = fdList->find_fd(me->connected_to);
+	me->connected_to = -1;
+	if (other == fdList->end())
+		return false;
+	other->connected_to = -1;
+	other->ticks = -1;
+	return true;
 }
 
-struct pollfd_byname {
-	struct pollfd sockfd;
-	struct pollfd sockinet;
-	struct pollfd curr_driver;
-	struct pollfd clis[MAX_CLIENTS];
-	struct pollfd peers[MAX_PEERS];
-};
 
-#define POLLFDS_SIZE (sizeof(struct pollfd_byname)/sizeof(pollfd))
-
-static union {
-	struct  pollfd_byname byname;
-	struct  pollfd byindex[POLLFDS_SIZE];
-} poll_fds;
-
-
-static int mywaitfordata(unsigned long maxusec)                    // NOLINT
+/**
+ * Send message to all connected clients unless they are processing a cmd,
+ * remove faulty clients. Returns true.
+ */
+static bool broadcast_message(const char* message, int fd)
 {
-	int i;
-	int ret, reconnect;
-	struct timeval tv, start, now, timeout, release_time;
-	loglevel_t oldlevel;
+	int len = strlen(message);
+	ItemIterator it;
 
-	while (1) {
-		do {
-			/* handle signals */
-			if (term)
-				dosigterm(termsig);
-			/* never reached */
-			if (hup) {
-				dosighup(SIGHUP);
-				hup = 0;
-			}
-			if (alrm) {
-				dosigalrm(SIGALRM);
-				alrm = 0;
-			}
-			memset(&poll_fds, 0, sizeof(poll_fds));
-			for (i = 0; i < static_cast<int>(POLLFDS_SIZE); i += 1)
-				poll_fds.byindex[i].fd = -1;
-
-			poll_fds.byname.sockfd.fd = sockfd;
-			poll_fds.byname.sockfd.events = POLLIN;
-
-			if (listen_tcpip) {
-				poll_fds.byname.sockinet.fd = sockinet;
-				poll_fds.byname.sockinet.events = POLLIN;
-			}
-			if (use_hw() && curr_driver->rec_mode != 0 && curr_driver->fd != -1) {
-				poll_fds.byname.curr_driver.fd = curr_driver->fd;
-				poll_fds.byname.curr_driver.events = POLLIN;
-			}
-
-			for (i = 0; i < clin; i++) {
-				/* Ignore this client until codes have been
-				 * sent and it will get an answer. Otherwise
-				 * we could mix up answer packets and send
-				 * them back in the wrong order. */
-				if (clis[i] != repeat_fd) {
-					poll_fds.byname.clis[i].fd = clis[i];
-					poll_fds.byname.clis[i].events = POLLIN;
-				}
-			}
-			timerclear(&tv);
-			reconnect = 0;
-			for (i = 0; i < peern; i++) {
-				if (peers[i]->socket != -1) {
-					poll_fds.byname.peers[i].fd = peers[i]->socket;
-					poll_fds.byname.peers[i].events = POLLIN;
-				} else if (timerisset(&tv)) {
-					if (timercmp(&tv, &peers[i]->reconnect, >))
-						tv = peers[i]->reconnect;
-				} else {
-					tv = peers[i]->reconnect;
-				}
-			}
-			if (timerisset(&tv)) {
-				gettimeofday(&now, NULL);
-				if (timercmp(&now, &tv, >)) {
-					timerclear(&tv);
-				} else {
-					timersub(&tv, &now, &start);
-					tv = start;
-				}
-				reconnect = 1;
-			}
-			gettimeofday(&start, NULL);
-			if (maxusec > 0) {
-				tv.tv_sec = maxusec / 1000000;
-				tv.tv_usec = maxusec % 1000000;
-			}
-			if (curr_driver->fd == -1 && use_hw()) {
-				/* try to reconnect */
-				timerclear(&timeout);
-				timeout.tv_sec = 1;
-
-				if (timercmp(&tv, &timeout, >)
-				    || (!reconnect && !timerisset(&tv)))
-					tv = timeout;
-			}
-			get_release_time(&release_time);
-			if (timerisset(&release_time)) {
-				gettimeofday(&now, NULL);
-				if (timercmp(&now, &release_time, >)) {
-					timerclear(&tv);
-				} else {
-					struct timeval gap;
-
-					timersub(&release_time, &now, &gap);
-					if (!(timerisset(&tv)
-					      || reconnect)
-					    || timercmp(&tv, &gap, >))
-						tv = gap;
-				}
-			}
-			if (timerisset(&tv) || timerisset(&release_time) || reconnect)
-				ret = poll((struct pollfd *) &poll_fds.byindex,
-					    POLLFDS_SIZE,
-					    tv.tv_sec * 1000 + tv.tv_usec / 1000);
-			else
-				ret = poll((struct pollfd*)&poll_fds.byindex, POLLFDS_SIZE, -1);
-
-			if (ret == -1 && errno != EINTR) {
-				log_perror_err("poll()() failed");
-				raise(SIGTERM);
-				continue;
-			}
-			gettimeofday(&now, NULL);
-			if (timerisset(&release_time) && timercmp(&now, &release_time, >)) {
-				const char* release_message;
-				const char* release_remote_name;
-				const char* release_button_name;
-
-				release_message =
-					trigger_release_event(&release_remote_name,
-							      &release_button_name);
-				if (release_message) {
-					input_message(release_message,
-						      release_remote_name,
-						      release_button_name,
-						      0, 1);
-				}
-			}
-			if (free_remotes != NULL)
-				free_old_remotes();
-			if (maxusec > 0) {
-				if (ret == 0)
-					return 0;
-				if (time_elapsed(&start, &now) >= maxusec)
-					return 0;
-				maxusec -= time_elapsed(&start, &now);
-			}
-			if (reconnect)
-				connect_to_peers();
-		} while (ret == -1 && errno == EINTR);
-
-		if (curr_driver->fd == -1 && use_hw() && curr_driver->init_func) {
-			oldlevel = loglevel;
-			lirc_log_setlevel(LIRC_ERROR);
-			curr_driver->init_func();
-			setup_hardware();
-			lirc_log_setlevel(oldlevel);
-		}
-		for (i = 0; i < clin; i++) {
-			if (poll_fds.byname.clis[i].revents & POLLIN) {
-				poll_fds.byname.clis[i].revents = 0;
-				if (get_command(clis[i]) == 0) {
-					remove_client(clis[i]);
-					i--;
-				}
-			}
-		}
-		for (i = 0; i < peern; i++) {
-			if (peers[i]->socket != -1 && poll_fds.byname.peers[i].revents & POLLIN) {
-				poll_fds.byname.peers[i].revents = 0;
-				if (get_peer_message(peers[i]) == 0) {
-					shutdown(peers[i]->socket, 2);
-					close(peers[i]->socket);
-					peers[i]->socket = -1;
-					peers[i]->connection_failure = 1;
-					gettimeofday(&peers[i]->reconnect, NULL);
-					peers[i]->reconnect.tv_sec += 5;
-				}
-			}
-		}
-
-		if (poll_fds.byname.sockfd.revents & POLLIN) {
-			poll_fds.byname.sockfd.revents = 0;
-			log_trace("registering local client");
-			add_client(sockfd);
-		}
-		if (poll_fds.byname.sockinet.revents & POLLIN) {
-			poll_fds.byname.sockinet.revents = 0;
-			log_trace("registering inet client");
-			add_client(sockinet);
-		}
-		if (use_hw() && curr_driver->rec_mode != 0
-		    && curr_driver->fd != -1
-		    && poll_fds.byname.curr_driver.revents & POLLIN) {
-			register_input();
-			/* we will read later */
-			return 1;
-		}
-	}
-}
-
-void loop(void)
-{
-	char* message;
-
-	log_notice("lircd(%s) ready, using %s", curr_driver->name, lircdfile);
-	if(useuinput) {
-		// Don't wait for client to connect when using uinput (#161)
-		if (curr_driver->init_func) {
-			if (!curr_driver->init_func()) {
-				log_warn("Failed to initialize hardware");
-			}
-		}
-	}
-	while (1) {
-		(void)mywaitfordata(0);
-		if (!curr_driver->rec_func)
+	it = fdList->begin();
+	while (it != fdList->end()) {
+		if (it->kind != FdItem::CLIENT_STREAM) {
+			it += 1;
 			continue;
-		message = curr_driver->rec_func(remotes);
+		}
+		if (it->connected_to != -1) {   // connected in command mode
+			it += 1;
+			continue;
+		}
+		log_trace("writing to client %d: %s", it->fd, message);
+		if (write_socket(it->fd, message, len) < len)
+			it = fdList->remove_client(it->fd);
+		else
+			it += 1;
+	}
+	return true;
+}
 
-		if (message != NULL) {
-			const char* remote_name;
-			const char* button_name;
-			int reps;
 
-			if (curr_driver->drvctl_func && (curr_driver->features & LIRC_CAN_NOTIFY_DECODE))
-				curr_driver->drvctl_func(LIRC_NOTIFY_DECODE, NULL);
+/** SIGTERM/SIGUSR1 helper, called from main loop. Cleans up and exits. */
+void dosigterm_sig(int sig)
+{
+	ItemIterator it;
 
-			get_release_data(&remote_name, &button_name, &reps);
+	signal(SIGALRM, SIG_IGN);
+	log_notice("caught signal");
 
-			input_message(message, remote_name, button_name, reps, 0);
+	repeat_remote = NULL;
+	if (fdList != 0) {
+		for (it = fdList->begin(); it != fdList->end(); it += 1) {
+			shutdown(it->fd, SHUT_RDWR);
+			close(it->fd);
 		}
 	}
+	pidfile->close();
+	lirc_log_close();
+	signal(sig, SIG_DFL);
+	if (sig == SIGUSR1)
+		exit(0);
+	raise(sig);
 }
 
 
-static int opt2host_port(const char*		optarg_arg,
-			 struct in_addr*	address,
-			 unsigned short*	port,               // NOLINT
-			 char*			errmsg)
+void dosigterm() { dosigterm_sig(SIGTERM); }
+
+
+void dosigusr1() { dosigterm_sig(SIGUSR1); }
+
+
+/** SIGTERM signal handler: setup  dosigterm_sig() calling in main loop. */
+void sigterm(int sig) { signal_handler = dosigterm; }
+
+
+/** SIGUSR1 signal handler: setup  dosigterm_sig() calling in main loop. */
+void sigusr1(int sig) { signal_handler = dosigusr1; }
+
+
+/** SIGHUP handler: Re-read config file. */
+static void dosighup()
 {
-	char optarg[strlen(optarg_arg) + 1];
+	ItemIterator it;
 
-	strncpy(optarg, optarg_arg, strlen(optarg_arg));
-	long p;                                                     // NOLINT
-	char* endptr;
-	char* sep = strchr(optarg, ':');
-	const char* port_str = sep ? sep + 1 : optarg;
-
-	p = strtol(port_str, &endptr, 10);
-	if (!*optarg || *endptr || p < 1 || p > USHRT_MAX) {
-		sprintf(errmsg,
-			"%s: bad port number \"%s\"\n", progname, port_str);
-		return -1;
+	/* reopen logfile first */
+	if (lirc_log_reopen() != 0) {
+		/* can't print any error messagees */
+		dosigterm();
 	}
-	*port = (unsigned short int)p;                              // NOLINT
-	if (sep) {
-		*sep = '\0';
-		if (!inet_aton(optarg, address)) {
-			sprintf(errmsg,
-				"%s: bad address \"%s\"\n", progname, optarg);
-			return -1;
+
+	it = fdList->begin();
+	while (it != fdList->end()) {
+		if (it->kind != FdItem::CLIENT_STREAM) {
+			it += 1;
+			continue;
 		}
+		if (send_sighup(it->fd))
+			it += 1;
+		else
+			it = fdList->remove_client(it->fd);
 	}
-	return 0;
 }
 
 
-static void lircd_add_defaults(void)
+/** SIGHUP signal handler: setup so dosighup() is called  in main loop. */
+void sighup(int sig) { signal_handler = dosighup; }
+
+
+/** Decrement the tick counter on each fd, handle timeouts. */
+void dosigalrm()
 {
-	char level[4];
+	ItemIterator it;
 
-	snprintf(level, sizeof(level), "%d", lirc_log_defaultlevel());
-
-	const char* const defaults[] = {
-		"lircd:nodaemon",	"False",
-		"lircd:permission",	DEFAULT_PERMISSIONS,
-		"lircd:driver",		"default",
-		"lircd:device",		NULL,
-		"lircd:listen",		NULL,
-		"lircd:connect",	NULL,
-		"lircd:output",		LIRCD,
-		"lircd:pidfile",	PIDFILE,
-		"lircd:logfile",	"syslog",
-		"lircd:debug",		level,
-		"lircd:release",	NULL,
-		"lircd:allow-simulate",	"False",
-		"lircd:dynamic-codes",	"False",
-		"lircd:plugindir",	PLUGINDIR,
-		"lircd:uinput",		"False",
-		"lircd:repeat-max",	DEFAULT_REPEAT_MAX,
-		"lircd:configfile",	LIRCDCFGFILE,
-		"lircd:driver-options",	"",
-		"lircd:effective-user",	"",
-
-		(const char*)NULL,	(const char*)NULL
-	};
-	options_add_defaults(defaults);
+	for (it = fdList->begin(); it != fdList->end(); it += 1) {
+		if (it->kind != FdItem::CLIENT_STREAM &&
+		    it->kind != FdItem::CTRL_STREAM) {
+			continue;
+		}
+		if (it->ticks <= 0)
+			continue;
+		log_trace("dosigalrm: ticks on %d (%d)", it->fd, it ->ticks);
+		it->ticks -= 1;
+		if (it->ticks > 0)
+			continue;
+		log_debug("dosigalrm: timeout on %d", it->fd);
+		send_error(it->fd, it->expected.c_str(), "TIMEOUT");
+		disconnect_fds(it->fd);
+		log_debug("Timeout: disconnecting %d", it->fd);
+		it->ticks = -1;
+	}
 }
 
 
-int parse_peer_connections(const char* opt)
-{
-	char buff[256];
-	static const char* const SEP = ", ";
-	char* host;
+/** SIGALRM signal handler: setup so dosigalrm() is called  in main loop. */
+void sigalrm(int sig) { signal_handler = dosigalrm; }
 
-	if (opt == NULL)
-		return 1;
-	strncpy(buff, opt, sizeof(buff) - 1);
-	for (host = strtok(buff, SEP); host; host = strtok(NULL, SEP)) {
-		if (!add_peer_connection(host))
-			return 0;
+
+/** fdLlist::find argument: locates proper backend) */
+bool find_backend_by_id(const FdItem& item, const char* what)
+{
+	return strcmp(what, item.id.c_str()) == 0;
+}
+
+
+/** Return vector of {firstword, remainder} in nl-terminated str. */
+std::vector<std::string> split_once(const char* str)
+{
+	std::vector<std::string> result;
+	if (str == NULL || *str =='\0')
+		return result;
+	char* buff = reinterpret_cast<char*>(alloca(strlen(str) + 2));
+	strncpy(buff, str, strlen(str));
+
+	char* token = strtok(buff, " \t\n");
+	if (token == NULL || *token == '\0')
+		return result;
+	result.push_back(token);
+
+	token = strtok(NULL, "\n");
+	if (token == NULL || *token == '\0')
+		return result;
+	result.push_back(token);
+	return result;
+}
+
+
+/** Handle VERSION command: return version. */
+static int version_cmd(int fd, const char* message, const char* arguments)
+{
+	char buffer[PACKET_SIZE + 1];
+
+	snprintf(buffer, sizeof(buffer), "1\n%s\n", VERSION);
+	return send_simple_reply(fd, message, buffer);
+}
+
+
+/** Create a faked decoded butten press event: remote code count raw. */
+static int simulate_cmd(int fd, const char* msg, const char* args)
+{
+	std::vector<std::string> commands = split_once(msg);
+	std::vector<std::string> arguments = split_once(args);
+
+	if (arguments.size() != 2)  {
+		send_error(fd, msg, "Bad arguments: %s", args);
+		return 0;
 	}
+	ItemIterator backend = fdList->find(arguments[0].c_str(),
+					    find_backend_by_id);
+	if (backend == fdList->end()) {
+		send_error(fd, msg, "No such backend: %s", backend);
+		return 0;
+	}
+	Simvalues simvalues;
+	if (!simvalues.parse(arguments[1].c_str())) {
+		send_error(fd, msg, "Cannot parse input: %s", arguments[1]);
+		return 0;
+	}
+	backend->expected = commands[0];
+	connect_fds(fd, backend->fd);
+	ItemIterator client = fdList->find_fd(fd);
+	if (client == fdList->end()) {
+		send_error(fd, msg, "Internal error: send_cmd: bad fd");
+		return 0;
+	}
+	commands[0] += " " + simvalues.to_string() + "\n";
+	log_debug("Backend %s command: %s", backend->id, commands[0].c_str());
+	write_socket(backend->fd, commands[0].c_str(), commands[0].size());
 	return 1;
 }
 
 
-static void lircd_parse_options(int argc, char** const argv)
+/** GET_DEFAULT_BACKEND command: return default backend; possible errors. */
+static int get_default_backend_cmd(int fd, const char* msg, const char* args)
 {
-	int c;
-	const char* optstring = "A:e:O:hvnpi:H:d:o:U:P:l::L:c:r::aR:D::Y"
-#       if defined(__linux__)
-				"u"
-#       endif
-	;			// NOLINT
+	log_debug("Sending default backend.");
+	if (default_backend == -1) {
+		send_error(fd, "GET_DEFAULT_BACKEND", "None");
+		return 1;
+	}
+	ItemIterator it = fdList->find_fd(default_backend);
+	if (it == fdList->end()) {
+		send_error(fd, "GET_DEFAULT_BACKEND", "Internal error");
+		log_warn("Cannot lookup default backend.");
+		return 1;
+	}
+	send_simple_reply(fd, "GET_DEFAULT_BACKEND", (it->id + "\n").c_str());
+	return 1;
+}
 
-	strncpy(progname, "lircd", sizeof(progname));
-	optind = 1;
-	lircd_add_defaults();
-	while ((c = getopt_long(argc, argv, optstring, lircd_options, NULL))
-	       != -1) {
-		switch (c) {
-		case 'h':
-			fputs(help, stdout);
-			exit(EXIT_SUCCESS);
-		case 'v':
-			printf("lircd %s\n", VERSION);
-			exit(EXIT_SUCCESS);
-		case 'e':
-			if (getuid() != 0) {
-				log_warn("Trying to set user while"
-					 " not being root");
-			}
-			options_set_opt("lircd:effective-user", optarg);
+
+/** LIST_BACKENDS command: Always succeeds, but might return no values. */
+static int list_backends_cmd(int fd, const char* msg, const char* args)
+{
+	ItemIterator it;
+	std::string backends("");
+
+	for (it = fdList->begin(); it != fdList->end(); it += 1) {
+		if (it->kind != FdItem::BACKEND_CMD)
+			continue;
+		backends += it->id + "\n";
+	}
+	send_simple_reply(fd, msg, backends.c_str());
+	return 1;
+}
+
+
+/** LIST_REMOTES command: dispatch to correct backend. */
+static int list_remotes_cmd(int fd, const char* msg, const char* args) {
+	std::vector<std::string> commands = split_once(msg);
+	std::vector<std::string> arguments = split_once(args);
+
+	if (arguments.size() != 1)  {
+		send_error(fd, msg, "Bad arguments: %s", args);
+		return 0;
+	}
+	ItemIterator backend = fdList->find(arguments[0].c_str(),
+					    find_backend_by_id);
+	if (backend == fdList->end()) {
+		send_error(fd, msg, "No such backend: %s", backend);
+		return 0;
+	}
+	backend->expected = commands[0];
+	connect_fds(fd, backend->fd);
+	ItemIterator client = fdList->find_fd(fd);
+	if (client == fdList->end()) {
+		send_error(fd, msg, "Internal error: send_cmd: bad fd");
+		return 0;
+	}
+	commands[0] += "\n";
+	log_debug("Backend %s command: %s", backend->id, commands[0].c_str());
+	write_socket(backend->fd, commands[0].c_str(), commands[0].size());
+	return 1;
+}
+
+
+/** LIST_CODES command: dispatch to correct backend. */
+static int list_codes_cmd(int fd, const char* msg, const char* args) {
+	std::vector<std::string> commands = split_once(msg);
+	std::vector<std::string> arguments = split_once(args);
+
+	if (arguments.size() != 2)  {
+		send_error(fd, msg, "Bad arguments: %s", args);
+		return 0;
+	}
+	ItemIterator backend = fdList->find(arguments[0].c_str(),
+					    find_backend_by_id);
+	if (backend == fdList->end()) {
+		send_error(fd, msg, "No such backend: %s", backend);
+		return 0;
+	}
+	backend->expected = commands[0];
+	connect_fds(fd, backend->fd);
+	ItemIterator client = fdList->find_fd(fd);
+	if (client == fdList->end()) {
+		send_error(fd, msg, "Internal error: send_cmd: bad fd");
+		return 0;
+	}
+	commands[0] += " "  + arguments[1] + "\n";
+	log_debug("Backend %s command: %s", backend->id, commands[0].c_str());
+	write_socket(backend->fd, commands[0].c_str(), commands[0].size());
+	return 1;
+}
+
+
+/** SET_DEFAULT_BACKEND command. */
+static int set_default_backend_cmd(int fd, const char* msg, const char* args)
+{
+	ItemIterator it;
+
+	std::string new_backend(args);
+	new_backend.erase(new_backend.find_last_not_of(" \n\r\t") + 1);
+
+	for (it = fdList->begin(); it != fdList->end(); it += 1) {
+		if (it->id == new_backend)
 			break;
-		case 'O':
-			break;
-		case 'n':
-			options_set_opt("lircd:nodaemon", "True");
-			break;
-                case 'i':
-			options_set_opt("lircd:immediate-init", "True");
-			break;
-		case 'p':
-			options_set_opt("lircd:permission", optarg);
-			break;
-		case 'H':
-			options_set_opt("lircd:driver", optarg);
-			break;
-		case 'd':
-			options_set_opt("lircd:device", optarg);
-			break;
-		case 'P':
-			options_set_opt("lircd:pidfile", optarg);
-			break;
-		case 'L':
-			options_set_opt("lircd:logfile", optarg);
-			break;
-		case 'o':
-			options_set_opt("lircd:output", optarg);
-			break;
-		case 'l':
-			options_set_opt("lircd:listen", "True");
-			options_set_opt("lircd:listen_hostport", optarg);
-			break;
-		case 'c':
-			options_set_opt("lircd:connect", optarg);
-			break;
-		case 'D':
-			loglevel_opt = (loglevel_t) options_set_loglevel(
-				optarg ? optarg : "debug");
-			if (loglevel_opt == LIRC_BADLEVEL) {
-				fprintf(stderr, DEBUG_HELP, optarg);
-				exit(EXIT_FAILURE);
-			}
-			break;
-		case 'a':
-			options_set_opt("lircd:allow-simulate", "True");
-			break;
-		case 'r':
-			options_set_opt("lircd:release", "True");
-			options_set_opt("lircd:release_suffix",
-					optarg ? optarg : LIRC_RELEASE_SUFFIX);
-			break;
-#               if defined(__linux__)
-		case 'u':
-			options_set_opt("lircd:uinput", "True");
-			break;
-#               endif
-		case 'U':
-			options_set_opt("lircd:plugindir", optarg);
-			break;
-		case 'R':
-			options_set_opt("lircd:repeat-max", optarg);
-			break;
-		case 'Y':
-			options_set_opt("lircd:dynamic-codes", "True");
-			break;
-		case 'A':
-			options_set_opt("lircd:driver-options", optarg);
-			break;
-		default:
-			printf("Usage: %s [options] [config-file]\n", progname);
-			exit(EXIT_FAILURE);
+	}
+	if (it == fdList->end()) {
+		log_warn("set-default-backend: No such backend: %s", args);
+		send_error(fd, msg, "No such backend: %s\n", args);
+		return 0;
+	}
+	default_backend = it->fd;
+	send_success(fd, msg);
+	return 1;
+}
+
+
+/** SET-INPUTLOG command: enable/disable logging if decoded data. */
+static int set_inputlog_cmd(int fd, const char* message, const char* arguments)
+{
+	char buff[128];
+	FILE* f;
+	int r;
+
+	r = sscanf(arguments, "%128s", buff);
+	if (r != 1) {
+		return send_error(fd, message,
+				  "Illegal argument (protocol error): %s",
+				  arguments);
+	}
+	if (strcasecmp(buff, "null") == 0) {
+		rec_buffer_set_logfile(NULL);
+		return send_success(fd, message);
+	}
+	f = fopen(buff, "w");
+	if (f == NULL) {
+		log_warn("Cannot open input logfile: %s", buff);
+		return send_error(fd, message,
+				  "Cannot open input logfile: %s (errno: %d)",
+				  buff, errno);
+	}
+	rec_buffer_set_logfile(f);
+	return send_success(fd, message);
+}
+
+
+/** STOP_BACKEND command */
+static int stop_backend_cmd(int fd, const char* msg, const char* argstring)
+{
+	std::vector<std::string> commands = split_once(msg);
+	std::vector<std::string> arguments = split_once(argstring);
+	ItemIterator backend = fdList->find(arguments[0].c_str(),
+					    find_backend_by_id);
+	if (backend == fdList->end()) {
+		send_error(fd, msg, "No such backend: %s", backend);
+		return 0;
+	}
+	if (arguments.size() != 1)  {
+		send_error(fd, msg, "Bad arguments: %s", argstring);
+		return 0;
+	}
+	backend->expected = commands[0];
+	connect_fds(fd, backend->fd);
+	ItemIterator client = fdList->find_fd(fd);
+	if (client == fdList->end()) {
+		send_error(fd, msg,
+			   "Internal error: stop_backend_cmd: bad fd");
+		return 0;
+	}
+	commands[0] += "\n";
+	log_debug("Backend %s command: %s", backend->id, commands[0].c_str());
+	write_socket(backend->fd, commands[0].c_str(), commands[0].size());
+	return 1;
+}
+
+
+/** SEND_ONCE, SEND_START, SEND_STOP commands: dispatch to backend. */
+static int send_cmd(int fd, const char* message, const char* argument)
+{
+	std::vector<std::string> commands = split_once(message);
+	std::vector<std::string> arguments = split_once(argument);
+
+	ItemIterator backend = fdList->find(arguments[0].c_str(),
+					    find_backend_by_id);
+	if (backend == fdList->end()) {
+		send_error(fd, message, "No such backend: %s", backend);
+		return 0;
+	}
+	if (arguments.size() != 2)  {
+		send_error(fd, message, "Bad arguments: %s", argument);
+		return 0;
+	}
+	backend->expected = commands[0];
+	connect_fds(fd, backend->fd);
+	ItemIterator client = fdList->find_fd(fd);
+	if (client == fdList->end()) {
+		send_error(fd, message, "Internal error: send_cmd: bad fd");
+		return 0;
+	}
+	commands[0] += " "  + arguments[1] + "\n";
+	log_debug("Backend %s command: %s", backend->id, commands[0].c_str());
+	write_socket_len(backend->fd, commands[0].c_str());
+	return 1;
+}
+
+
+static int send_once_cmd(int fd, const char* message, const char* arguments)
+{
+	return send_cmd(fd, message, arguments);
+}
+
+
+static int send_start_cmd(int fd, const char* message, const char* arguments)
+{
+	return send_cmd(fd, message, arguments);
+}
+
+
+static int send_stop_cmd(int fd, const char* message, const char* arguments)
+{
+	return send_cmd(fd, message, arguments);
+}
+
+
+/** SET_TRANSMITTERS command: dispatch to correct backend. */
+static int set_transmitters_cmd(int fd, const char* msg, const char* args) {
+	std::vector<std::string> commands = split_once(msg);
+	std::vector<std::string> arguments = split_once(args);
+
+	if (arguments.size() != 2)  {
+		send_error(fd, msg, "Bad arguments: %s", args);
+		return 0;
+	}
+	ItemIterator backend = fdList->find(arguments[0].c_str(),
+					    find_backend_by_id);
+	if (backend == fdList->end()) {
+		send_error(fd, msg, "No such backend: %s", backend);
+		return 0;
+	}
+	backend->expected = commands[0];
+	connect_fds(fd, backend->fd);
+	ItemIterator client = fdList->find_fd(fd);
+	if (client == fdList->end()) {
+		send_error(fd, msg,
+			   "Internal error: set_transmitters: bad fd");
+		return 0;
+	}
+	commands[0] += " "  + arguments[1] + "\n";
+	log_debug("Backend %s command: %s", backend->id, commands[0].c_str());
+	write_socket(backend->fd, commands[0].c_str(), commands[0].size());
+	return 1;
+}
+
+
+/** Set socket linger opts to that close(sock) don't waits for completion. */
+static void nolinger(int sock)
+{
+	static const struct linger linger = { 0, 0 };
+	const int lsize = sizeof(struct linger);
+
+	setsockopt(sock, SOL_SOCKET, SO_LINGER,
+		   reinterpret_cast<const void*>(&linger), lsize);
+}
+
+
+/**  Create cmd - data backend peer relation, quits silently on errors. */
+static void connect_peers(int client_fd, int backend_fd)
+{
+	ItemIterator client;
+	ItemIterator backend;
+
+	backend = fdList->find_fd(backend_fd);
+	if (backend == fdList-> end())
+		return;
+	backend->peer = client_fd;
+	if (client_fd == 0)
+		return;
+	client = fdList->find_fd(client_fd);
+	if (client == fdList-> end())
+		return;
+	client->peer = backend_fd;
+}
+
+
+/** Return data socket path for given fd */
+static void get_backend_data_path(int fd, std::string* path)
+{
+	char buff[128];
+
+	snprintf(buff, sizeof(buff), "%s-data-%d",
+		 options->client_socket_path, fd);
+	std::string s(buff);
+	*path = s;
+}
+
+
+static bool find_backend_by_type(const FdItem& item, int what)
+{
+	return item.kind == FdItem::BACKEND_CMD;
+}
+
+
+/** Find a random, new default client if available. */
+static void find_new_default_backend()
+{
+	ItemIterator item = fdList->find(0, find_backend_by_type);
+	if (item == fdList->end())
+		default_backend = -1;
+	else
+		default_backend = item->fd;
+	log_debug("New default backend: %d", default_backend);
+}
+
+
+/** Remove client with given fd from list. */
+void remove_client(int fd)
+{
+	if (fdList->remove_client(fd) == fdList->end()) {
+		log_notice("internal error in remove_client: no such fd");
+		return;
+	}
+	shutdown(fd, 2);
+	close(fd);
+	log_info("removed client");
+}
+
+
+/** Accept socket connnection and invoke add_func() with new fd as argument. */
+void add_client(int sock, void (*add_func)(int fd))
+{
+	int fd;
+	socklen_t clilen;
+	struct sockaddr client_addr;
+	int flags;
+
+	clilen = sizeof(client_addr);
+	fd = accept(sock, (struct sockaddr*)&client_addr, &clilen);
+	if (fd == -1) {
+		log_perror_err("accept() failed for new client");
+		dosigterm();
+	}
+	nolinger(fd);
+	flags = fcntl(fd, F_GETFL, 0);
+	if (flags != -1)
+		fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+	if (client_addr.sa_family != AF_UNIX) {
+		log_warn("Non-Unix soocket connection: what?");
+		return;
+	}
+	log_trace("Adding new client: %d", fd);
+	add_func(fd);
+}
+
+
+/**
+ *  Add the command channel to fdList. Create the data fifo with a name
+ *  which can be retreived when the backend returns with reply
+ *  for the GET-ID command.
+ */
+void add_backend(int sock)
+{
+	const char* const GET_ID_CMD = "GET-ID\n";
+	int data_fd;
+	int cmd_fd;
+	int flags;
+	struct sockaddr client_addr;
+	FdItem item;
+	std::string path;
+
+	socklen_t clilen = sizeof(client_addr);
+
+	cmd_fd = accept(sock, (struct sockaddr*)&client_addr, &clilen);
+	if (cmd_fd == -1) {
+		log_perror_err("accept() failed for new backend");
+		dosigterm();
+	}
+	nolinger(cmd_fd);
+	flags = fcntl(cmd_fd, F_GETFL, 0);
+	if (flags != -1)
+		fcntl(cmd_fd, F_SETFL, flags | O_NONBLOCK);
+	if (client_addr.sa_family != AF_UNIX) {
+		log_warn("Non-Unix soocket connection: WTF?");
+		return;
+	}
+	get_backend_data_path(cmd_fd, &path);
+
+	if (access(path.c_str(), F_OK) == 0)
+		unlink(path.c_str());
+
+	if (mkfifo(path.c_str(), 0666) == -1) {
+		log_perror_err("Cannot setup backend fifo %s", path.c_str());
+		return;
+	}
+	data_fd = open(path.c_str(), O_RDONLY | O_NONBLOCK);
+	if (data_fd == -1) {
+		log_perror_err("Cannot open backend fifo");
+		return;
+	}
+	log_debug("Waiting for event input on %s", path.c_str());
+	fdList->add_backend(cmd_fd, data_fd);
+	connect_peers(cmd_fd, data_fd);
+	ItemIterator it = fdList->find_fd(cmd_fd);
+	it->connected_to = 0;
+	write_socket(cmd_fd, GET_ID_CMD, sizeof(GET_ID_CMD));
+}
+
+
+/** Setup a local, network listening socket. */
+int setup_socket(const char* path, int permissions = 0666 )
+{
+	int fd;
+	struct sockaddr_un serv_addr;
+	struct stat statbuf;
+	int r;
+	bool new_socket = true;
+
+	fd = socket(AF_UNIX, SOCK_STREAM, 0);
+	if (fd == -1) {
+		log_perror_err("Could not create socket");
+		return -1;
+	}
+	/*
+	 * Get owner, permissions, etc.
+	 * so new socket can be the same since we
+	 * have to delete the old socket.
+	 */
+	r = stat(path, &statbuf);
+	if (r == -1 && errno != ENOENT) {
+		perrorf("Could not get file information for %s\n", path);
+		return -1;
+	}
+	if (r != -1) {
+		new_socket = false;
+		r = unlink(path);
+		if (r == -1) {
+			perrorf("Could not delete %s", path);
+			close(fd);
+			return -1;
 		}
 	}
-	if (optind == argc - 1) {
-		options_set_opt("lircd:configfile", argv[optind]);
-	} else if (optind != argc) {
-		fprintf(stderr, "%s: invalid argument count\n", progname);
+	serv_addr.sun_family = AF_UNIX;
+	strcpy(serv_addr.sun_path, path);
+	r = bind(fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+	if (r == -1) {
+		perrorf("Could not assign address to socket%s", path);
+		close(fd);
+		return -1;
+	}
+	if (new_socket) {
+		chmod(path, permissions);
+	} else if (chmod(path, statbuf.st_mode) == -1
+		   || chown(path, statbuf.st_uid, statbuf.st_gid) == -1) {
+		perrorf("Could not set file permissions on %s", path);
+		close(fd);
+		return -1;
+	}
+	listen(fd, 3);
+	return fd;
+}
+
+
+/** Handle reply from backend after issuing GET-ID command. */
+void handle_get_id_reply(int fd)
+{
+	pid_t pid;
+	char name[32];
+	char where[64];
+	std::string path;
+
+	ItemIterator it = fdList->find_fd(fd);
+	std::string reply = it->replyParser->get_data();
+	int r = sscanf(reply.c_str(), "%6d %32s %64s", &pid, name, where);
+	if (r != 3) {
+		log_error("Cannot register backend.");  // FIXME
+		log_debug("Command: %s", reply.c_str());
+		return;
+	}
+	it->id = std::string(name) + "@" + std::string(where);
+
+	get_backend_data_path(fd, &path);
+	std::string cmd("SET-DATA-SOCKET ");
+	cmd +=  path + "\n";
+	write_socket(fd, cmd.c_str(), cmd.size());
+}
+
+
+/** Handle reply from backend after issuing SET-DATA-SOCKET command. */
+void handle_data_socket_reply(int fd)
+{
+	ItemIterator it = fdList->find_fd(fd);
+	if (it == fdList->end()) {
+		log_warn("handle_data_socket: Cannot lookup fd.");
+		return;
+	}
+	if (it->replyParser->get_success()) {
+		log_debug("Final backend registration on %d", fd);
+		default_backend = fd;
+	} else {
+		log_error("Backend data channel setup error: %s",
+			   it->replyParser->get_last_line());
+	}
+	disconnect_fds(fd);
+}
+
+
+/** Handle a backend reply to a command from lircd. */
+bool handle_local_reply(const char* message, int fd)
+{
+	std::string reply;
+
+	ItemIterator backend = fdList->find_fd(fd);
+	backend->replyParser->feed(message);
+	if (backend->replyParser->is_completed())
+	{
+		if (backend->replyParser->get_result() == ReplyParser::OK) {
+			std::string cmd = backend->replyParser->get_command();
+			if (cmd == "GET-ID") {
+				handle_get_id_reply(fd);
+			} else if (cmd == "SET-DATA-SOCKET") {
+				handle_data_socket_reply(fd);
+			} else {
+				log_warn("Unknown backend reply: %s", cmd);
+			}
+		} else {
+			log_error("Cannot handle backend reply: %s",
+				  backend->replyParser->get_last_line());
+		}
+		backend->replyParser->reset();
+	}
+	return true;
+}
+
+
+/**
+ * Replies from backend, routed to the connected_to socket in the backend's
+ * FdItem. Disconnect when finding '^END' Disconnect when finding '^END'
+ */
+bool handle_backend_line(const char* line, int fd)
+{
+	ItemIterator it;
+	char buffer[PACKET_SIZE + 1];
+	int r;
+
+	it = fdList->find_fd(fd);
+	if (it == fdList->end())
+		return false;
+	if (it->connected_to < 0) {
+		log_error("Unexpected reply from backend: %s", line);
+		r = read(fd, buffer, sizeof(buffer));
+		if (r < 0)
+			log_perror_err("Disconnected backend?!")
+		else
+			log_debug("Discarding input: %d", r);
+		return false;
+	}
+	if (it->connected_to == 0) {
+		return handle_local_reply(line, fd);
+	}
+	write_socket(it->connected_to, line, strlen(line));
+	if (strncmp("END", line, 3) == 0)
+		disconnect_fds(fd);
+	return true;
+}
+
+
+/**
+ * Client lines input are commands to the default backend. Replies from
+ * backend are routed using fditem.connected_to
+ */
+bool handle_client_line(const char* line, int fd)
+{
+	char buff[PACKET_SIZE + 1];
+	const char* cmdptr;
+
+	strncpy(buff, line, sizeof(buff) - 1);
+	cmdptr = strtok(buff, " \t\n\r");
+	if (cmdptr == NULL) {
+		log_notice("Empty client line.");
+		return false;
+	}
+	ItemIterator client = fdList->find_fd(fd);
+	if (client == fdList->end()) {
+		log_warn("handle_client_line: Cannot lookup fd.");
+		return false;
+	}
+	ItemIterator backend = fdList->find_fd(default_backend);
+	if (backend != fdList->end()) {
+		backend->replyParser->reset();
+		backend->expected = std::string(cmdptr);
+		connect_fds(fd, default_backend);
+		write_socket(default_backend, line, strlen(line));
+	} else {
+		log_notice("No backend available, fd: %d", fd);
+		send_error(fd, cmdptr,
+			   "Backend unavailable, current: %d",
+			   default_backend);
+	}
+	return true;
+}
+
+
+/**
+ * Control commands, processed by lircd or forwarded to designated
+ * backend.
+ */
+bool handle_ctrl_cmd(const char* line, int fd)
+{
+	char buff[PACKET_SIZE + 1];
+	const char* directive;
+	const char* const DELIM = " \t\n\r";
+	ItemIterator item = fdList->end() + 1;
+
+	strncpy(buff, line, sizeof(buff) - 1);
+	directive = strtok(buff, DELIM);
+	if (directive == NULL) {
+		log_notice("Empty line from client");
+		return true;
+	}
+	int ix;
+	for (ix = 0; directives[ix].name != NULL; ix++) {
+		if (strcasecmp(directive, directives[ix].name) == 0) {
+			item = fdList->find_fd(fd);
+			break;
+		}
+	}
+	if (item == fdList->end() + 1) {
+		log_notice("Unknown command: %s", directive);
+		send_error(fd, directive, "Unknown command: %s", directive);
+		return true;
+	}
+	if (item == fdList->end()) {
+		log_warn("Internal error: cannot lookup fd");
+		send_error(fd, directive, "Internal error: bad fd");
+		return true;
+	}
+	item->expected = directive;
+	directives[ix].function(fd, line, strtok(NULL, ""));
+	return true;
+}
+
+
+/**
+ * Break input into lines annd invoke line_handler(line, fd) for each line.
+ * The line_handler func returns true if the socket is functional and can be
+ * used.
+ *
+ * @bug  Recursive reads blocks main loop.
+ */
+static int get_line(int fd, bool (*line_handler)(const char* line, int fd))
+{
+	int length;
+	char buffer[PACKET_SIZE + 1];
+	char* end;
+	int packet_length;
+	std::string s;
+	size_t pos;
+
+	length = read_timeout(fd, buffer, PACKET_SIZE, 5);
+	packet_length = 0;
+	while (length > packet_length) {
+		buffer[length] = 0;
+		end = strchr(buffer, '\n');
+		if (end == NULL) {
+			log_error("bad send packet: \"%s\"", buffer);
+			/* remove clients that behave badly */
+			return 0;
+		}
+		s = std::string(buffer, end - buffer + 1);
+		log_trace("Received input on %d: '%s'", fd, s.c_str());
+		packet_length = s.size();
+
+		/* remove DOS line endings */
+		pos = s.rfind("\r");
+		if (pos == s.size() - 1)
+			s = s.substr(0, s.size() - 1);
+
+		if (!line_handler(s.c_str(), fd))
+			return 0;
+
+		if (length > packet_length) {
+			int new_length;
+
+			memmove(buffer, buffer + packet_length, length - packet_length + 1);
+			if (strchr(buffer, '\n') == NULL) {
+				new_length =
+					read_timeout(fd, buffer + length - packet_length,
+						     PACKET_SIZE - (length - packet_length), 5);
+				if (new_length > 0)
+					length = length - packet_length + new_length;
+				else
+					length = new_length;
+			} else {
+				length -= packet_length;
+			}
+			packet_length = 0;
+		}
+	}
+	return length != 0;     /* length == 0 -> EOF: connection closed by client */
+}
+
+
+void fdlist_add_client(int fd) { fdList->add_client(fd); }
+
+
+void fdlist_add_ctrl_client(int fd) { fdList->add_ctrl_client(fd); }
+
+
+void remove_and_log(int fd, const char* why)
+{
+	log_debug("Removing fd (%s): %d", why, fd);
+	fdList->remove_client(fd);    // FIXME: Make remove generic.
+}
+
+
+/** Invoke proper action for a socket with pending data. */
+void process_item_input(FdItem item)
+{
+	switch (item.kind) {
+	case FdItem::UNDEFINED:
+		log_warn("Strange client state: (%d)", item.fd);
+		break;
+	case FdItem::CLIENT:
+		log_debug("Registering client");
+        	add_client(fdList->client_socket(), fdlist_add_client);
+		break;
+	case FdItem::BACKEND:
+		log_debug("Registering backend");
+        	add_backend(fdList->backend_socket());
+		break;
+	case FdItem::CTRL:
+		log_debug("Registering control client");
+        	add_client(fdList->ctrl_socket(), fdlist_add_ctrl_client);
+		break;
+	case FdItem::BACKEND_DATA:
+		if (!get_line(item.fd, broadcast_message)) {
+			remove_and_log(item.fd,
+				       "backend_data: get_line() fails");
+			find_new_default_backend();
+		}
+		break;
+	case FdItem::BACKEND_CMD:
+		if (!get_line(item.fd, handle_backend_line)) {
+			remove_and_log(item.fd,
+				       "backend_cmd: get_line() fails");
+			find_new_default_backend();
+		}
+		break;
+	case FdItem::CLIENT_STREAM:
+		if (!get_line(item.fd, handle_client_line))
+			remove_and_log(item.fd, "client: get_line() fails");
+		break;
+	case FdItem::CTRL_STREAM:
+		if (!get_line(item.fd, handle_ctrl_cmd))
+			remove_and_log(item.fd, "control: get_line() fails");
+		break;
+	}
+}
+
+
+/** Main loop: do poll(), handle signals and sockets with pending data. */
+static int main_loop(const struct options_t* options, unsigned long maxusec)
+{
+	int r;
+	std::vector<struct pollfd> pollfds;
+	std::vector<FdItem> items;
+
+	log_notice("lircd ready, using %s", options->client_socket_path);
+	while (1) {
+		fdList->get_pollfds(&items, &pollfds);
+		do {
+			if (signal_handler != 0) {
+				signal_handler();
+				signal_handler = 0;
+			}
+			r = poll(&pollfds[0], pollfds.size(), HEARTBEAT_US/1000);
+			if (r == -1 && errno != EINTR) {
+				log_perror_err("poll()() failed");
+				raise(SIGTERM);
+				continue;
+			}
+		} while (r == -1 && errno == EINTR);
+		if (r == 0)
+			continue;
+		for (size_t i = 0; i < pollfds.size(); i += 1) {
+			if ((pollfds[i].revents & POLLERR) != 0)
+				remove_and_log(items[i].fd, "POLLERR");
+			if ((pollfds[i].revents & POLLNVAL) != 0)
+				remove_and_log(items[i].fd, "POLLNVAL");
+			if ((pollfds[i].revents & POLLIN) != 0)
+				process_item_input(items[i]);
+			if ((pollfds[i].revents & POLLHUP) != 0)
+				remove_and_log(items[i].fd, "POLLHUP");
+		}
+	}
+}
+
+
+/** Daemonize: close stdin/stdout, fork a new process. */
+void daemonize(void)
+{
+	if (daemon(0, 0) == -1) {
+		log_perror_err("daemon() failed");
+		dosigterm();
+	}
+	umask(0);
+	pidfile->update(getpid());
+}
+
+
+/** Start the heartbeat SIGALRM signalling each HEARTBEAT_US. */
+void start_heartbeat()
+{
+	struct itimerval itimer;
+
+	itimer.it_interval.tv_sec = 0;
+	itimer.it_interval.tv_usec = HEARTBEAT_US;
+	itimer.it_value.tv_sec = 0;
+	itimer.it_value.tv_usec = HEARTBEAT_US;
+	setitimer(ITIMER_REAL, &itimer, NULL);
+}
+
+
+/** Creates global pidfile and obtain the lock on it. Exits on errors */
+void create_pidfile()
+{
+	Pidfile::lock_result result;
+
+	/* create pid lockfile in /var/run */
+	pidfile = new Pidfile(options->pidfile_path);
+        result = pidfile->lock();
+        switch (result) {
+	case Pidfile::OK:
+		break;
+	case Pidfile::CANT_CREATE:
+		perrorf("Can't open or create %s", options->pidfile_path);
+		exit(EXIT_FAILURE);
+	case Pidfile::LOCKED_BY_OTHER:
+		fprintf(stderr,
+			"lircd: There seems to already be a lircd process with pid %d\n",
+			pidfile->other_pid);
+		fprintf(stderr,
+			"lircd: Otherwise delete stale lockfile %s\n",
+			options->pidfile_path);
+		exit(EXIT_FAILURE);
+	case Pidfile::CANT_PARSE:
+		fprintf(stderr, "lircd: Invalid pidfile %s encountered\n",
+			options->pidfile_path);
 		exit(EXIT_FAILURE);
 	}
 }
 
 
-int main(int argc, char** argv)
+/** Start server: Setup the three well-known sockets. */
+void start_server(const struct options_t* options)
 {
-	struct sigaction act;
-	mode_t permission;
-	const char* device = NULL;
-	char errmsg[128];
-	const char* opt;
-	int immediate_init = 0;
+	int client_sock_fd = -1;
+	int ctrl_sock_fd = -1;
+	int backend_sock_fd = -1;
 
-	address.s_addr = htonl(INADDR_ANY);
-	hw_choose_driver(NULL);
-	options_load(argc, argv, NULL, lircd_parse_options);
-	opt = options_getstring("lircd:debug");
-	if (options_set_loglevel(opt) == LIRC_BADLEVEL) {
-		fprintf(stderr, "Bad configuration loglevel:%s\n", opt);
-		fprintf(stderr, DEBUG_HELP, optarg);
-		fprintf(stderr, "Falling back to 'info'\n");
-	}
-	opt = options_getstring("lircd:logfile");
-	if (opt != NULL)
-		lirc_log_set_file(opt);
-	lirc_log_open("lircd", 0, LIRC_INFO);
+#ifdef HAVE_SYSTEMD
+	int n = sd_listen_fds(0);
 
-	immediate_init = options_getboolean("lircd:immediate-init");
-	nodaemon = options_getboolean("lircd:nodaemon");
-	opt = options_getstring("lircd:permission");
-	if (oatoi(opt) == -1) {
-		fprintf(stderr, "%s: Invalid mode %s\n", progname, opt);
-		return EXIT_FAILURE;
+	if (n > 1) {
+		fprintf(stderr, "Too many file descriptors received.\n");
+		pidfile->close();
+		exit(EXIT_FAILURE);
+	} else if (n == 1) {
+		client_sock_fd = SD_LISTEN_FDS_START + 0;
 	}
-	permission = oatoi(opt);
-	device = options_getstring("lircd:device");
-	opt = options_getstring("lircd:driver");
-	if (strcmp(opt, "help") == 0 || strcmp(opt, "?") == 0) {
-		hw_print_drivers(stdout);
-		return EXIT_SUCCESS;
-	}
-	if (hw_choose_driver(opt) != 0) {
-		fprintf(stderr, "Driver `%s' not found or not loadable", opt);
-		fprintf(stderr, " (wrong or missing -U/--plugindir?).\n");
-		fputs("Use lirc-lsplugins(1) to list available drivers.\n",
-                      stderr);
-		hw_print_drivers(stderr);
-		return EXIT_FAILURE;
-	}
-	curr_driver->open_func(device);
-	opt = options_getstring("lircd:driver-options");
-	if (opt != NULL)
-		drv_handle_options(opt);
-	pidfile = options_getstring("lircd:pidfile");
-	lircdfile = options_getstring("lircd:output");
-	opt = options_getstring("lircd:logfile");
-	if (opt != NULL)
-		lirc_log_set_file(opt);
-	if (options_getstring("lircd:listen") != NULL) {
-		listen_tcpip = 1;
-		opt = options_getstring("lircd:listen_hostport");
-		if (opt) {
-			if (opt2host_port(opt, &address, &port, errmsg) != 0) {
-				fputs(errmsg, stderr);
-				return EXIT_FAILURE;
-			}
-		} else {
-			port = LIRC_INET_PORT;
+#endif
+	if (client_sock_fd == -1) {
+		client_sock_fd =
+			setup_socket(options->client_socket_path,
+			             options->client_socket_permissions);
+		if (client_sock_fd == -1) {
+			perrorf("Could not setup socket %s, path");
+			pidfile->close();
+			exit(EXIT_FAILURE);
 		}
 	}
-	opt = options_getstring("lircd:connect");
-	if (!parse_peer_connections(opt))
-		return(EXIT_FAILURE);
-	loglevel_opt = (loglevel_t) options_getint("lircd:debug");
-	userelease = options_getboolean("lircd:release");
-	set_release_suffix(options_getstring("lircd:release_suffix"));
-	allow_simulate = options_getboolean("lircd:allow-simulate");
-#       if defined(__linux__)
-	useuinput = options_getboolean("lircd:uinput");
-	if (useuinput)
-		log_warn("--uinput is deprecated, check the lircd manpage.");
-#       endif
-	repeat_max = options_getint("lircd:repeat-max");
-	configfile = options_getstring("lircd:configfile");
-	curr_driver->open_func(device);
-	if (strcmp(curr_driver->name, "null") == 0 && peern == 0) {
-		fprintf(stderr, "%s: there's no hardware I can use and no peers are specified\n", progname);
-		return EXIT_FAILURE;
+	backend_sock_fd = setup_socket(options->backend_socket_path, 0666);
+	if (backend_sock_fd == -1) {
+		perrorf("Could not setup socket %s",
+			options->backend_socket_path);
+		pidfile->close();
+		shutdown(client_sock_fd, SHUT_RDWR);
+		exit(EXIT_FAILURE);
 	}
-	if (curr_driver->device != NULL && strcmp(curr_driver->device, lircdfile) == 0) {
-		fprintf(stderr, "%s: refusing to connect to myself\n", progname);
-		fprintf(stderr, "%s: device and output must not be the same file: %s\n", progname, lircdfile);
-		return EXIT_FAILURE;
+	ctrl_sock_fd = setup_socket(options->ctrl_socket_path, 0666);
+	if (ctrl_sock_fd == -1) {
+		perrorf("Could not setup socket %s",
+			options->ctrl_socket_path);
+		shutdown(client_sock_fd, SHUT_RDWR);
+		shutdown(backend_sock_fd, SHUT_RDWR);
+		pidfile->close();
+		exit(EXIT_FAILURE);
 	}
+	fdList = new FdList(client_sock_fd, backend_sock_fd, ctrl_sock_fd);
+	log_trace("started server sockets %s", options->client_socket_path);
+}
+
+
+void setup_signal_handlers()
+{
+	struct sigaction act;
 
 	signal(SIGPIPE, SIG_IGN);
 
-	start_server(permission, nodaemon, loglevel_opt);
-
 	act.sa_handler = sigterm;
 	sigfillset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;      /* don't fiddle with EINTR */
+	act.sa_flags = SA_RESTART;
 	sigaction(SIGTERM, &act, NULL);
 	sigaction(SIGINT, &act, NULL);
 
-	act.sa_handler = sigalrm;
-	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;      /* don't fiddle with EINTR */
-	sigaction(SIGALRM, &act, NULL);
-
-	act.sa_handler = dosigterm;
+	act.sa_handler = sigusr1;
 	sigemptyset(&act.sa_mask);
 	act.sa_flags = SA_RESTART;
 	sigaction(SIGUSR1, &act, NULL);
 
-	remotes = NULL;
-	config();               /* read config file */
+	act.sa_handler = sigalrm;
+	sigemptyset(&act.sa_mask);
+	act.sa_flags = SA_RESTART;
+	sigaction(SIGALRM, &act, NULL);
 
 	act.sa_handler = sighup;
 	sigemptyset(&act.sa_mask);
-	act.sa_flags = SA_RESTART;      /* don't fiddle with EINTR */
+	act.sa_flags = SA_RESTART;
 	sigaction(SIGHUP, &act, NULL);
+}
 
-	if (immediate_init && curr_driver->init_func) {
-		log_info("Doing immediate init, as requested");
-		int status = curr_driver->init_func();
-		if (status) {
-			setup_hardware();
-		} else {
-			log_error("Failed to initialize hardware");
-			return(EXIT_FAILURE);
-		}
-		if (curr_driver->deinit_func) {
-			int status = curr_driver->deinit_func();
-			if (!status)
-				log_error("Failed to de-initialize hardware");
-		}
-	}
+
+int main(int argc, char** argv)
+{
+	options = get_options(argc, argv);
+	if (options->logfile != NULL)
+		lirc_log_set_file(options->logfile);
+	lirc_log_open("lircd", options->nodaemon, options->loglevel);
+
+	create_pidfile();
+	start_server(options);
+
+	setup_signal_handlers();
 
 	/* ready to accept connections */
-	if (!nodaemon)
+	if (!options->nodaemon)
 		daemonize();
 
-	loop();
+	start_heartbeat();
 
-	/* never reached */
+	main_loop(options, 0);
+
+	/* Not reached */
 	return EXIT_SUCCESS;
-}
+};
