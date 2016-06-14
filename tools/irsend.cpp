@@ -94,7 +94,7 @@ int main(int argc, char** argv)
 	const char* lircd = NULL;
 	char* address = NULL;
 	unsigned short port = LIRC_INET_PORT;
-	unsigned long count = 1;
+	unsigned long count = 1;		// NOLINT
 	int fd;
 	char buffer[PACKET_SIZE + 1];
 	int r;
@@ -129,7 +129,7 @@ int main(int argc, char** argv)
 		{
 			char* p;
 			char* end;
-			unsigned long val;
+			unsigned long val;            // NOLINT
 
 			address = strdup(optarg);
 			if (!address) {
@@ -143,7 +143,7 @@ int main(int argc, char** argv)
 					fprintf(stderr, "%s: invalid port number: %s\n", prog, p + 1);
 					return EXIT_FAILURE;
 				}
-				port = (unsigned short)val;
+				port = (unsigned short)val;           // NOLINT
 				*p = 0;
 			}
 			break;

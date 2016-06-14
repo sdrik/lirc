@@ -2,6 +2,8 @@
 ** ircat.c *****************************************************************
 ****************************************************************************
 *
+* copyright (C) 2002 Bjorn Bringert <bjorn@bringert.net>
+*
 * ircat - prints config strings to standard output, can be used to
 * provide remote control input to scripts
 *
@@ -24,7 +26,6 @@
 * button tv_p+ is pressed.
 *
 *
-* Copyright (C) 2002 Bjorn Bringert <bjorn@bringert.net>
 *
 * Based on irexec.c
 *

@@ -2,6 +2,8 @@
  * Simple  tool to check that all plugins in current path can be loaded
  * Accepts a single argument identical to the --plugindir option for
  * lircd
+ *
+ * Copyright (c) 2014 Alec Leamas
  */
 
 #ifndef _GNU_SOURCE
@@ -127,7 +129,7 @@ static void  lines_next(line_t* line)
 static line_t* line_new(const char* path)
 // Create a new, malloc'd line.
 {
-	line_t* line = (line_t*) malloc(sizeof(line_t));
+	line_t* line = reinterpret_cast<line_t*>(malloc(sizeof(line_t)));
 
 	line->flags = line->name = "-";
 	line->path = strdup(path);
@@ -147,8 +149,8 @@ static int line_cmp(const void* arg1, const void* arg2)
 	char key1[255];
 	char key2[255];
 
-	line_t* l1 = *((line_t**)arg1);
-	line_t* l2 = *((line_t**)arg2);
+	const line_t* l1 = *(line_t**)(arg1);   // NOLINT - dropping constness
+	const line_t* l2 = *(line_t**)(arg2);   // NOLINT - dropping constness
 
 	snprintf(key1, sizeof(key1), "%s%s", l1->path, l1->name);
 	snprintf(key2, sizeof(key2), "%s%s", l2->path, l2->name);
@@ -176,7 +178,7 @@ static void print_folded_item(const char* arg)
 		puts("None");
 		return;
 	}
-	buff = (char*) alloca(strlen(arg) + 1);
+	buff = reinterpret_cast<char*>(alloca(strlen(arg) + 1));
 	strcpy(buff, arg);
 	token = strtok(buff, " \t");
 	while (token != NULL) {
@@ -207,13 +209,13 @@ static void line_print_yaml(const line_t* line)
 		return;
 	}
 	printf("\n    %s:\n", line->name);
-	printf("        %-16s%s\n", "type:", line->type );
+	printf("        %-16s%s\n", "type:", line->type);
 	printf("        %-16s%s\n", "can_send:", line->can_send);
 	printf("        %-16s'%s'\n",
 
 	       "info:", line->info ? line->info : "None");
 	if (!line->device_hint) {
-		printf("        %-16s%s\n", "device_hint:","None");
+		printf("        %-16s%s\n", "device_hint:", "None");
 	} else {
 		printf("        %-16s\n", "device_hint: |");
 		fputs("            \"", stdout);
@@ -323,8 +325,7 @@ static void format_features(struct driver* hw, line_t* line)
 		 get(LIRC_CAN_SET_SEND_DUTY_CYCLE, 'd', hw),
 		 get(LIRC_CAN_SET_TRANSMITTER_MASK, 't', hw),
 		 get(LIRC_CAN_MEASURE_CARRIER, 'C', hw),
-		 get(LIRC_CAN_NOTIFY_DECODE, 'D', hw)
-		 );
+		 get(LIRC_CAN_NOTIFY_DECODE, 'D', hw));
 	line->features = strdup(buff);
 }
 
@@ -442,9 +443,11 @@ static void print_yaml_header(void)
 }
 
 
-void lsplugins(const char* pluginpath, const char* which)
+void lsplugins(const char* pluginpath, char* which)
 {
-	for_each_plugin(format_plugin, (void*)which, pluginpath);
+	for_each_plugin(format_plugin,
+			reinterpret_cast<void*>(which),
+			pluginpath);
 	qsort(lines, line_ix, sizeof(line_t*), line_cmp);
 	if (opt_summary) {
 		printf("Plugins: %d\n", sum_plugins);
@@ -482,6 +485,7 @@ int main(int argc, char** argv)
 	const char* pluginpath;
 	char path [128];
 	const char* which;
+	char* which_rw;
 	int c;
 	const loglevel_t level = options_get_app_loglevel("lirc-lsplugins");
 
@@ -536,6 +540,8 @@ int main(int argc, char** argv)
 	lirc_log_set_file(path);
 	lirc_log_open("lirc-lsplugins", 1, level);
 
-	lsplugins(pluginpath, which);
+	which_rw = reinterpret_cast<char*>(alloca(sizeof(which + 1)));
+	strncpy(which_rw, which, sizeof(which_rw -1));
+	lsplugins(pluginpath, which_rw);
 	return sum_errors == 0 ? 0 : 1;
 }

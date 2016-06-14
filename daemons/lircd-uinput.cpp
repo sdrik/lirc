@@ -4,6 +4,8 @@
 *
 * lircd-uinput - Forward decoded lircd events to kernel uinput device.
 *
+* Copyright (c) 2015 Alec Leamas
+*
 */
 
 /**
@@ -260,7 +262,6 @@ void lircd_uinput(const char* socket_path,
 			send_message(remote, button, reps, releasesuffix);
 		} else {
 			log_warn("Cannot parse line: %s", buffer);
-
 		}
 	}
 }

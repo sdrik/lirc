@@ -180,7 +180,7 @@ inline int write_socket_len(int fd, const char* buf)
 inline int read_timeout(int fd, char* buf, int len, int timeout_us)
 {
 	int ret, n;
-	struct pollfd  pfd = {fd, POLLIN, 0}; // fd, events, revents
+	struct pollfd  pfd = {fd, POLLIN, 0};  // fd, events, revents
 	int timeout = timeout_us > 0 ? timeout_us/1000 : -1;
 
 	/* CAVEAT: (from libc documentation)
@@ -195,13 +195,13 @@ inline int read_timeout(int fd, char* buf, int len, int timeout_us)
 	 * waiting as long as there are EINTR.
 	 */
 
-	do
+	do {
 		ret = poll(&pfd, 1, timeout * 1000);
-	while (ret == -1 && errno == EINTR);
+	} while (ret == -1 && errno == EINTR);
 	if (ret == -1) {
 		log_perror_err("read_timeout, poll() failed");
 		return -1;
-	};
+	}
 	if (ret == 0)
 		return 0;       /* timeout */
 	n = read(fd, buf, len);
@@ -226,7 +226,8 @@ static void nolinger(int sock)
 	static struct linger linger = { 0, 0 };
 	int lsize = sizeof(struct linger);
 
-	setsockopt(sock, SOL_SOCKET, SO_LINGER, (void*)&linger, lsize);
+	setsockopt(sock, SOL_SOCKET, SO_LINGER,
+		   reinterpret_cast<void*>(&linger), lsize);
 }
 
 static void free_config_info(struct config_info* ci)
@@ -289,8 +290,6 @@ void add_client(int sock)
 		log_perror_err("accept() failed for new client");
 		return;
 	}
-	;
-
 	if (clin >= MAX_CLIENTS) {
 		log_error("connection rejected");
 		shutdown(fd, 2);
@@ -299,9 +298,10 @@ void add_client(int sock)
 	}
 	nolinger(fd);
 	flags = fcntl(fd, F_GETFL, 0);
-	if (flags != -1)
+	if (flags != -1) {
 		fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-        log_trace2( "accepted new client");
+	}
+        log_trace2("accepted new client");
 	clis[clin].fd = fd;
 	clis[clin].ident_string = NULL;
 	clis[clin].first_event = NULL;

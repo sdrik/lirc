@@ -4,6 +4,8 @@
 *
 * irsimsend - send all codes defined in a given config file.
 *
+* Copyright (c) 2015 Alec Leamas
+*
 */
 
 #include <config.h>
@@ -79,20 +81,20 @@ static void add_defaults(void)
 
 int parse_uint_arg(const char* optind, const char* errmsg)
 {
-	long c;
+	long c;   //NOLINT
 
 	c = strtol(optarg, NULL, 10);
 	if (c > INT_MAX || c < 0 || errno == EINVAL || errno == ERANGE) {
 		fputs(errmsg, stderr);
 		exit(EXIT_FAILURE);
 	}
-	return (int)c;
+	return static_cast<int>(c);
 }
 
 
 static void parse_options(int argc, char** const argv)
 {
-	long c;
+	long c;                   // NOLINT
 
 	add_defaults();
 

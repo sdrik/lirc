@@ -89,10 +89,10 @@ int clock_gettime(int clk_id, struct timespec *t){
 	if (timebase.numer == 0)
 		mach_timebase_info(&timebase);
 	time = mach_absolute_time();
-	tv.>tv_nsec = ((double) time *
-		    (double) timebase.numer)/((double) timebase.denom);
-	tv.>tv_sec = ((double)time *
-		   (double)timebase.numer)/((double)timebase.denom * 1e9);
+	tv.>tv_nsec = ((double) time *                                     // NOLINT
+		    (double) timebase.numer)/((double) timebase.denom);    // NOLINT
+	tv.>tv_sec = ((double)time *                                       // NOLINT
+		   (double)timebase.numer)/((double)timebase.denom * 1e9); // NOLINT
 	return 0;
 }
 #endif
@@ -117,7 +117,7 @@ static const logchannel_t logchannel = LOG_APP;
 
 struct peer_connection {
 	char*		host;
-	unsigned short	port;
+	unsigned short	port;		// NOLINT
 	struct timeval	reconnect;
 	int		connection_failure;
 	int		socket;
@@ -168,7 +168,7 @@ static const struct option lircd_options[] = {
 	{ "pidfile",	    required_argument, NULL, 'P' },
 	{ "plugindir",	    required_argument, NULL, 'U' },
 	{ "logfile",	    required_argument, NULL, 'L' },
-	{ "debug",	    optional_argument, NULL, 'D' }, // compatibility
+	{ "debug",	    optional_argument, NULL, 'D' },  // compatibility
 	{ "loglevel",	    optional_argument, NULL, 'D' },
 	{ "release",	    optional_argument, NULL, 'r' },
 	{ "allow-simulate", no_argument,       NULL, 'a' },
@@ -282,7 +282,7 @@ static int cli_type[MAX_CLIENTS];
 static int clin = 0; /* Number of clients */
 
 static int listen_tcpip = 0;
-static unsigned short int port = LIRC_INET_PORT;
+static unsigned short int port = LIRC_INET_PORT;          // NOLINT
 static struct in_addr address;
 
 static struct peer_connection* peers[MAX_PEERS];
@@ -365,7 +365,7 @@ int write_socket_len(int fd, const char* buf)
 int read_timeout(int fd, char* buf, int len, int timeout_us)
 {
 	int ret, n;
-	struct pollfd  pfd = {fd, POLLIN, 0}; // fd, events, revents
+	struct pollfd  pfd = {fd, POLLIN, 0};  // fd, events, revents
 	int timeout = timeout_us > 0 ? timeout_us/1000 : -1;
 
 
@@ -382,11 +382,11 @@ int read_timeout(int fd, char* buf, int len, int timeout_us)
 	 */
 	do
 		ret = poll(&pfd, 1, timeout);
-	while (ret == -1 && errno == EINTR);
+	while (ret == -1 && errno == EINTR);                 // NOLINT
 	if (ret == -1) {
 		log_perror_err("read_timeout: poll() failed");
 		return -1;
-	};
+	}
 	if (ret == 0)
 		return 0;       /* timeout */
 	n = read(fd, buf, len);
@@ -558,7 +558,7 @@ void config(void)
 	configfile = filename;
 	config_remotes = read_config(fd, configfile);
 	fclose(fd);
-	if (config_remotes == (void*)-1) {
+	if (config_remotes == (void*)-1) {                     // NOLINT
 		log_error("reading of config file failed");
 	} else {
 		log_trace("config file read");
@@ -626,7 +626,6 @@ void dosigterm(int sig)
 		shutdown(clis[i], 2);
 		close(clis[i]);
 	}
-	;
 	if (do_shutdown)
 		shutdown(sockfd, 2);
 	close(sockfd);
@@ -737,7 +736,8 @@ void nolinger(int sock)
 	static struct linger linger = { 0, 0 };
 	int lsize = sizeof(struct linger);
 
-	setsockopt(sock, SOL_SOCKET, SO_LINGER, (void*)&linger, lsize);
+	setsockopt(sock, SOL_SOCKET, SO_LINGER,
+		   reinterpret_cast<void*>(&linger), lsize);
 }
 
 
@@ -806,8 +806,6 @@ void add_client(int sock)
 		log_perror_err("accept() failed for new client");
 		dosigterm(SIGTERM);
 	}
-	;
-
 	if (clin >= MAX_CLIENTS) {
 		log_error("connection rejected (too many clients)");
 		shutdown(fd, 2);
@@ -869,7 +867,7 @@ int add_peer_connection(const char* server_arg)
 				if (service) {
 					peers[peern]->port = ntohs(service->s_port);
 				} else {
-					long p;
+					long p;                                 // NOLINT
 					char* endptr;
 
 					p = strtol(sep, &endptr, 10);
@@ -877,8 +875,7 @@ int add_peer_connection(const char* server_arg)
 						fprintf(stderr, "%s: bad port number \"%s\"\n", progname, sep);
 						return 0;
 					}
-
-					peers[peern]->port = (unsigned short int)p;
+					peers[peern]->port = (unsigned short int)p;             // NOLINT
 				}
 			} else {
 				peers[peern]->host = strdup(server);
@@ -1211,20 +1208,20 @@ void sigalrm(int sig)
 }
 
 
-static void schedule_repeat_timer (struct timespec* last)
+static void schedule_repeat_timer(struct timespec* last)
 {
-	unsigned long secs;
+	unsigned long secs;			// NOLINT
 	lirc_t usecs, gap, diff;
 	struct timespec current;
 	struct itimerval repeat_timer;
 	gap = send_buffer_sum() + repeat_remote->min_remaining_gap;
-	clock_gettime (CLOCK_MONOTONIC, &current);
+	clock_gettime(CLOCK_MONOTONIC, &current);
 	secs = current.tv_sec - last->tv_sec;
 	diff = 1000000 * secs + (current.tv_nsec - last->tv_nsec) / 1000;
 	usecs = (diff < gap ? gap - diff : 0);
 	if (usecs < 10)
 		usecs = 10;
-	log_trace("alarm in %lu usecs", (unsigned long)usecs);
+	log_trace("alarm in %lu usecs", (unsigned long)usecs);              // NOLINT
 	repeat_timer.it_value.tv_sec = 0;
 	repeat_timer.it_value.tv_usec = usecs;
 	repeat_timer.it_interval.tv_sec = 0;
@@ -1257,7 +1254,7 @@ void dosigalrm(int sig)
 	    || (repeat_code->transmit_state != NULL && repeat_code->transmit_state->next == NULL))
 		repeat_remote->repeat_countdown--;
 	struct timespec before_send;
-	clock_gettime (CLOCK_MONOTONIC, &before_send);
+	clock_gettime(CLOCK_MONOTONIC, &before_send);
 	if (send_ir_ncode(repeat_remote, repeat_code, 1) && repeat_remote->repeat_countdown > 0) {
 		schedule_repeat_timer(&before_send);
 		return;
@@ -1391,7 +1388,9 @@ int send_remote(int fd, char* message, struct ir_remote* remote)
 
 	codes = remote->codes;
 	while (codes->name != NULL) {
-		len = snprintf(buffer, PACKET_SIZE, "%016llx %s\n", (unsigned long long)codes->code, codes->name);
+		// NOLINTNEXTLINE
+		len = snprintf(buffer, PACKET_SIZE, "%016llx %s\n",
+			      (unsigned long long)codes->code, codes->name);    //NOLINT
 		if (len >= PACKET_SIZE + 1)
 			len = sprintf(buffer, "code_too_long\n");
 		if (write_socket(fd, buffer, len) < len)
@@ -1410,6 +1409,7 @@ int send_name(int fd, char* message, struct ir_ncode* code)
 	    (write_socket_len(fd, protocol_string[P_BEGIN]) && write_socket_len(fd, message)
 	     && write_socket_len(fd, protocol_string[P_SUCCESS]) && write_socket_len(fd, protocol_string[P_DATA])))
 		return 0;
+	// NOLINTNEXTLINE
 	len = snprintf(buffer, PACKET_SIZE, "1\n%016llx %s\n", (unsigned long long)code->code, code->name);
 	if (len >= PACKET_SIZE + 1)
 		len = sprintf(buffer, "1\ncode_too_long\n");
@@ -1531,7 +1531,7 @@ static int simulate(int fd, char* message, char* arguments)
 	if (strlen(s) == 0 || space != NULL)
 		goto simulate_invalid_event;
 
-	sim = (char*) malloc(strlen(arguments) + 1 + 1);
+	sim = reinterpret_cast<char*>(malloc(strlen(arguments) + 1 + 1));
 	if (sim == NULL)
 		return send_error(fd, message, "out of memory\n");
 	strcpy(sim, arguments);
@@ -1584,7 +1584,7 @@ static int send_core(int fd, char* message, char* arguments, int once)
 		remote->toggle_bit_mask_state = (remote->toggle_bit_mask_state ^ remote->toggle_bit_mask);
 	code->transmit_state = NULL;
 	struct timespec before_send;
-	clock_gettime (CLOCK_MONOTONIC, &before_send);
+	clock_gettime(CLOCK_MONOTONIC, &before_send);
 	if (!send_ir_ncode(remote, code, 1))
 		return send_error(fd, message, "transmission failed\n");
 	gettimeofday(&remote->last_send, NULL);
@@ -1687,7 +1687,8 @@ static int drv_option(int fd, char* message, char* arguments)
 				  "Illegal argument (protocol error): %s",
 				  arguments);
 	}
-	r = curr_driver->drvctl_func(DRVCTL_SET_OPTION, (void*)&option);
+	r = curr_driver->drvctl_func(DRVCTL_SET_OPTION,
+				     reinterpret_cast<void*>(&option));
 	if (r != 0) {
 		log_warn("Cannot set driver option");
 		return send_error(fd, message,
@@ -1947,7 +1948,7 @@ static union {
 } poll_fds;
 
 
-static int mywaitfordata(unsigned long maxusec)
+static int mywaitfordata(unsigned long maxusec)                    // NOLINT
 {
 	int i;
 	int ret, reconnect;
@@ -1969,7 +1970,7 @@ static int mywaitfordata(unsigned long maxusec)
 				alrm = 0;
 			}
 			memset(&poll_fds, 0, sizeof(poll_fds));
-			for (i = 0; i < (int)POLLFDS_SIZE; i += 1)
+			for (i = 0; i < static_cast<int>(POLLFDS_SIZE); i += 1)
 				poll_fds.byindex[i].fd = -1;
 
 			poll_fds.byname.sockfd.fd = sockfd;
@@ -2174,13 +2175,13 @@ void loop(void)
 
 static int opt2host_port(const char*		optarg_arg,
 			 struct in_addr*	address,
-			 unsigned short*	port,
+			 unsigned short*	port,               // NOLINT
 			 char*			errmsg)
 {
 	char optarg[strlen(optarg_arg) + 1];
 
 	strncpy(optarg, optarg_arg, strlen(optarg_arg));
-	long p;
+	long p;                                                     // NOLINT
 	char* endptr;
 	char* sep = strchr(optarg, ':');
 	const char* port_str = sep ? sep + 1 : optarg;
@@ -2191,7 +2192,7 @@ static int opt2host_port(const char*		optarg_arg,
 			"%s: bad port number \"%s\"\n", progname, port_str);
 		return -1;
 	}
-	*port = (unsigned short int)p;
+	*port = (unsigned short int)p;                              // NOLINT
 	if (sep) {
 		*sep = '\0';
 		if (!inet_aton(optarg, address)) {
@@ -2261,7 +2262,7 @@ static void lircd_parse_options(int argc, char** const argv)
 #       if defined(__linux__)
 				"u"
 #       endif
-	;
+	;			// NOLINT
 
 	strncpy(progname, "lircd", sizeof(progname));
 	optind = 1;
@@ -2484,9 +2485,9 @@ int main(int argc, char** argv)
 	if (immediate_init && curr_driver->init_func) {
 		log_info("Doing immediate init, as requested");
 		int status = curr_driver->init_func();
-		if (status)
+		if (status) {
 			setup_hardware();
-		else {
+		} else {
 			log_error("Failed to initialize hardware");
 			return(EXIT_FAILURE);
 		}

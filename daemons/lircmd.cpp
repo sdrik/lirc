@@ -99,8 +99,7 @@ static const char* const help =
 	"\t -u --uinput\t\tGenerate Linux input events\n"
 #       endif
 	"\t -D[level] --loglevel[=level]\n"
-            "\t\t\t\t'info', 'warning', 'notice', etc., or 3..10.\n"
-;
+            "\t\t\t\t'info', 'warning', 'notice', etc., or 3..10.\n";
 
 
 int map_buttons(int b)
@@ -209,7 +208,7 @@ void freetm(struct trans_mouse* tm_all)
 
 void sigterm(int sig)
 {
-	/* not safe in a signal handler *//*freetm(tm_first); */
+	// not safe in a signal handler *//*freetm(tm_first);
 
 	shutdown(lircd, 2);
 	close(lircd);
@@ -248,7 +247,7 @@ void dohup(void)
 	}
 	tm_list = read_config(fd);
 	fclose(fd);
-	if (tm_list == (void*)-1) {
+	if (tm_list == reinterpret_cast<void*>(-1)) {
 		syslog(LOG_WARNING, "reading of config file failed");
 	} else {
 		freetm(tm_first);
@@ -885,7 +884,7 @@ int main(int argc, char** argv)
 	if (lircd == -1) {
 		perror("could not open socket");
 		exit(EXIT_FAILURE);
-	};
+	}
 	addr.sun_family = AF_UNIX;
 	strncpy(addr.sun_path,
 		options_getstring("lircmd:socket"),
@@ -893,7 +892,7 @@ int main(int argc, char** argv)
 	if (connect(lircd, (struct sockaddr*)&addr, sizeof(addr)) == -1) {
 		perrorf("could not connect to socket: %s", addr.sun_path);
 		exit(EXIT_FAILURE);
-	};
+	}
 
 	/* either create uinput device or fifo device */
 	uinputfd = -1;
@@ -939,7 +938,7 @@ int main(int argc, char** argv)
 	configfile = filename;
 	tm_first = read_config(fd);
 	fclose(fd);
-	if (tm_first == (void*)-1) {
+	if (tm_first == reinterpret_cast<void*>(-1)) {
 		fprintf(stderr, "%s: reading of config file failed\n", progname);
 		exit(EXIT_FAILURE);
 	} else {

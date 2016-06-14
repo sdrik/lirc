@@ -231,7 +231,6 @@ int open_device(int opt_raw_access, const char* device)
 			perrorf("Error while opening device: %s", device);
 			exit(EXIT_FAILURE);
 		}
-		;
 		if ((fstat(fd, &s) != -1) && (S_ISFIFO(s.st_mode))) {
 			/* can't do ioctls on a pipe */
 		} else if ((fstat(fd, &s) != -1) && (!S_ISCHR(s.st_mode))) {
@@ -387,10 +386,10 @@ int next_press(int fd, int mode, int bytes)
 		r = read(fd, input.buffer, bytes);
 		if (r == -1)
 			perrorf("read() error on %s", opt_device);
-		else if (r != (int)bytes)
+		else if (r != static_cast<int>(bytes))
 			fprintf(stderr, "Partial read %d bytes on %s",
 				r, opt_device);
-		if (r != (int)bytes)
+		if (r != static_cast<int>(bytes))
 			return 0;
 		if (mode == LIRC_MODE_MODE2)
 			print_mode2_data(input.data);
@@ -466,6 +465,6 @@ int main(int argc, char** argv)
 		bytes = (code_length + CHAR_BIT - 1) / CHAR_BIT;
 	}
 	while (next_press(fd, mode, bytes))
-		;
+		{}
 	return EXIT_SUCCESS;
 }

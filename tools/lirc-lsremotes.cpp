@@ -4,6 +4,8 @@
 *
 * lirc-lsremotes - list remotes from the remotes database.
 *
+* Copyright (c) 2014 Alec Leamas
+*
 */
 
 #include <config.h>
@@ -82,7 +84,7 @@ void get_lircmd(const char* path, char* buff, ssize_t size)
 void get_photo(const char* const path, char* buff, ssize_t size)
 {
 	const char* const extensions[] =
-		{".jpg",".png",".gif",".JPG",".PNG",".GIF", 0};
+		{".jpg", ".png", ".gif", ".JPG", ".PNG", ".GIF", 0};
 	char try_buff[256];
 	char* last;
 	int found = 0;
@@ -136,7 +138,7 @@ void print_remotes(const char* path)
 	r = read_config(f, path);
 	if (opt_silent)
 		return;
-	while (r != NULL && r != (void*)-1) {
+	while (r != NULL && r != reinterpret_cast<void*>(-1)) {
 		timing = r->pzero != 0 || r->pzero != 0 || is_raw(r) ?
 			 "timing" : "no_timing";
 		strncpy(photo, path, sizeof(photo));
@@ -156,7 +158,6 @@ void print_remotes(const char* path)
 			fprint_remote(stdout, r, "Dumped by lirc-lsremotes");
 		r = r->next;
 	}
-	;
 	fclose(f);
 }
 

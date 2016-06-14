@@ -14,7 +14,7 @@ bin_PROGRAMS            = lircrcd
 lircrcd_SOURCES         = lircrcd.cpp
 lircrcd_LDADD           = ../lib/liblirc_client.la
 
-sbin_PROGRAMS           = lircd lircmd 
+sbin_PROGRAMS           = lircd lircmd
 
 if HAVE_UINPUT
 sbin_PROGRAMS           += lircd-uinput
@@ -28,6 +28,10 @@ lircd_uinput_LDADD     = ../lib/liblirc.la
 
 lircmd_SOURCES          = lircmd.cpp
 lircmd_LDADD            = ../lib/liblirc.la
+
+cpplint:
+	../git-tools/cpplint.py $(lircd_SOURCES) $(lircrcd_SOURCES) \
+             $(lircd_uinput_SOURCES) $(lircmd_SOURCES)
 
 
 install-exec-local:

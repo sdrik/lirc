@@ -87,7 +87,6 @@ static void copy_loop(int ptym, int ignoreeof)
 	if ((child = fork()) < 0) {
 		die("fork error");
 	} else if (!child) {
-
 		while (1) {
 			poll(pfd, 2, 0);
 
@@ -108,6 +107,8 @@ static void copy_loop(int ptym, int ignoreeof)
 					if (ir == NULL)
 						break;
 					while ((ret = lirc_code2char(lconfig, ir, &irchars)) == 0 && irchars != NULL)
+		// NOLINTNEXTLINE
+						// NOLINTNEXTLINE
 						if (write(ptym, irchars, strlen(irchars)) != (int) strlen(irchars))
 							die("write error to master pty");
 					free(ir);
@@ -373,6 +374,7 @@ int main(int argc, char* argv[])
 	if (interactive) {
 		if (tcgetattr(STDIN_FILENO, &orig_termios) < 0)
 			die("tcgetattr error on stdin\n");
+		// NOLINTNEXTLINE
 		if (ioctl(STDIN_FILENO, TIOCGWINSZ, (char*)&size) < 0)
 			die("TIOCGWINSZ error\n");
 		pid = pty_fork(&fdm, slave_name, &orig_termios, &size);

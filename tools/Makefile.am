@@ -103,6 +103,13 @@ dist_pkgpython_SCRIPTS  = lirc-setup/lirc-setup
 dist_pkgpython_DATA     = lirc-setup/lirc-setup.ui
 endif
 
+cpplint:
+	../git-tools/cpplint.py  $(irw_SOURCES) $(irexec_SOURCES) \
+	    $(irpty_SOURCES) $(ircat_SOURCES) $(irrecord_SOURCES) \
+	    $(irsimsend_SOURCES) $(irsimreceive_SOURCES) \
+	    $(mode2_SOURCES) $(lirc_lsplugins_SOURCES) \
+	    $(irsend_SOURCES) $(lirc_lsremotes_SOURCES)
+
 pylint: irdb-get $(pkgpython_PYTHON)
 	PYTHONPATH=./lirc-setup $(PYLINT) --rcfile=pylint.conf \
 	--msg-template='{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}' \

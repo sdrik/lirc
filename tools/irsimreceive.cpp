@@ -4,6 +4,8 @@
 *
 * irsimreceive.c -Receive data from file and decode.
 *
+* Copyright (c) 2015 Alec Leamas
+*
 */
 
 #include <config.h>
@@ -19,7 +21,7 @@ static const logchannel_t logchannel = LOG_APP;
 static void add_defaults(void)
 {
 	static char plugindir[128];
-        const static char* defaults[] = {
+        static const char* defaults[] = {
 		"lircd:plugindir",	plugindir,
 		(const char*)NULL,	(const char*)NULL
 	};
@@ -49,7 +51,7 @@ static struct option options[] = {
 
 static void parse_options(int argc, char** const argv)
 {
-	long c;
+	long c;                             // NOLINT
 
 	add_defaults();
 
@@ -105,7 +107,8 @@ static void setup(const char* path)
 	}
 	strcpy(option.key, "set-infile");
 	strncpy(option.value, path, sizeof(option.value));
-	r = curr_driver->drvctl_func(DRVCTL_SET_OPTION, (void*)&option);
+	r = curr_driver->drvctl_func(DRVCTL_SET_OPTION,
+				     reinterpret_cast<void*>(&option));
 	if (r != 0) {
 		fputs("Cannot set driver infile.\n", stderr);
 		exit(EXIT_FAILURE);
@@ -128,7 +131,7 @@ struct ir_remote* read_lircd_conf(const char* configfile)
 	}
 	remotes = read_config(f, configfile);
 	fclose(f);
-	if (remotes == (void*)-1) {
+	if (remotes == reinterpret_cast<void*>(-1)) {
 		log_error("reading of config file failed");
 		exit(EXIT_FAILURE);
 	} else {

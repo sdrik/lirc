@@ -196,7 +196,7 @@ static void ncode_list_add(struct ir_ncode* ncode)
 		return;
 	}
 	for (n = ncodes_root; n->next_ncode != NULL; n = n->next_ncode)
-		;
+		{}
 	n->next_ncode = new_ncode;
 }
 
@@ -426,6 +426,7 @@ static enum init_status init(struct opts* opts, struct main_state* state)
 			return STS_INIT_FORCE_TMPL;
 		my_remote = read_config(f, opts->filename);
 		fclose(f);
+		// NOLINTNEXTLINE
 		if (my_remote == (void*)-1 || my_remote == NULL)
 			return STS_INIT_BAD_FILE;
 		opts->using_template = 1;
@@ -447,7 +448,7 @@ static enum init_status init(struct opts* opts, struct main_state* state)
 			free_config(my_remote);
 			return STS_INIT_TESTED;
 		}
-		remote = *my_remote;  //FIXME: Who owns this memory?
+		remote = *my_remote;  // FIXME: Who owns this memory?
 		if (opts->update) {
 			for (nc = remote.codes; nc->name != NULL; nc++)
 				ncode_list_add(nc);
@@ -510,8 +511,8 @@ static enum init_status init(struct opts* opts, struct main_state* state)
 	}
 	drop_sudo_root(seteuid);
 
-	aeps = ((int) curr_driver->resolution > aeps ?
-		curr_driver->resolution : aeps);
+	aeps = (static_cast<int>(curr_driver->resolution) > aeps ?
+		    curr_driver->resolution : aeps);
 	if (curr_driver->rec_mode != LIRC_MODE_MODE2
 	    && curr_driver->rec_mode != LIRC_MODE_LIRCCODE) {
 		fclose(state->fout);
@@ -668,7 +669,7 @@ do_init(struct opts* opts, struct main_state* state)
 
 static int printf_signal_func(struct ir_ncode* ncode, void* arg)
 {
-	fprint_remote_signal((FILE*) arg, &remote, ncode);
+	fprint_remote_signal(reinterpret_cast<FILE*>(arg), &remote, ncode);
 	return 1;
 }
 
@@ -801,8 +802,9 @@ void do_record_buttons(struct main_state* state, const struct opts* opts)
 			sts = STS_BTN_GET_NAME;
 			continue;
 		case STS_BTN_RECORD_DONE:
-			ncode_list_for_each(printf_signal_func,
-					    (void*) state->fout);
+			ncode_list_for_each(
+				printf_signal_func,
+				reinterpret_cast<void*>(state->fout));
 			fprint_remote_signal_foot(state->fout, &remote);
 			fprint_remote_foot(state->fout, &remote);
 			fclose(state->fout);
@@ -861,10 +863,10 @@ void check_ambient_light(const struct opts* opts)
 		perror("Cannot read from device");
 	} else if (sum < NOISE_LIMIT) {
 		printf("No significant noise (received %d bytes)\n\n",
-		       (int) sum);
+		       static_cast<int>(sum));
 	} else {
 		printf("Here is a lof of noise (%d bytes received)\n",
-		       (int) sum);
+		       static_cast<int>(sum));
 		puts(MSG_TOO_MUCH_NOISE);
 		getchar();
 	}
@@ -883,7 +885,8 @@ static void remote_report(struct ir_remote* remote)
 	else if (is_goldstar(remote)) printf("GOLDSTAR encoding\n");
 	else if (is_grundig(remote)) printf("GRUNDIG encoding\n");
 	else if (is_bo(remote)) printf("Bang & Olufsen encoding\n");
-	else printf("Unknown encoding\n");
+	else
+		printf("Unknown encoding\n");
 	log_debug("%d %u %u %u %u %u %d %d %d %u\n",
 		  remote->bits, (__u32)remote->pone, (__u32)remote->sone,
 		  (__u32)remote->pzero, (__u32)remote->szero,
@@ -1015,7 +1018,7 @@ void lirccode_get_lengths(const struct opts* opts, struct main_state* state)
 
 int count_ncode(struct ir_ncode* ncode, void* arg)
 {
-	int* sumptr = (int*) arg;
+	int* sumptr = reinterpret_cast<int*>(arg);
 
 	*sumptr += 1;
 	return 1;
@@ -1110,7 +1113,7 @@ again:
 		if (system(buff) != 0)
 			printf("Warning: Cannot create backup file.\n");
 	} else if (opts->backupfile != NULL) {
-		free((void*) opts->backupfile);
+		free((void*)opts->backupfile);     // NOLINT - throwing const!
 		opts->backupfile = NULL;
 	}
 }
