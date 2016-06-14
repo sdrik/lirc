@@ -11,16 +11,36 @@ function files_to_update()
 
 here=$(dirname $(readlink -fn $0))
 
-C_SOURCES=( $( files_to_update | grep -E '\.c$|\.h$'))
-
 MAN_SOURCES=( $( files_to_update |  grep -E  '\.1$|\.4|\.5$|\.8$'))
+C_SOURCES=( $( files_to_update | grep -E '\.c$|\.h$'))
+CPP_SOURCES=( $( files_to_update | grep -E '\.cpp$'))
+CPP_HEADERS=
 
+for header in ${C_SOURCES[@]}; do
+    if [[ $header != *.h ]]; then
+        continue
+    fi
+    if test -e ${header/.h/.cpp}; then
+        CPP_HEADERS=( $CPP_HEADERS $header )
+        C_SOURCES=( ${C_SOURCES/$header/} )
+#        C_SOURCES=$(echo $C_SOURCES | sed -e \"s|$header||\")
+    fi
+done
 
 # See that C sources passes checkfile (i. e., checkpatch.pl)
 for f in ${C_SOURCES[@]} ; do
     test -L $f && continue
     if ! $here/checkfiles $f; then
         echo "Checkpatch errors, fix them (or use --no-verify to commit anyway)."
+        exit 1
+    fi
+done
+
+# See  that C++ sources and headers passes cpplint.
+for f in ${CPP_SOURCES[@]} ${CPP_HEADERS[@]}; do
+    test -L $f && continue
+    if ! $here/cpplint.py $f; then
+        echo "cpplint errors, fix them (or use --no-verify to commit anyway)."
         exit 1
     fi
 done
