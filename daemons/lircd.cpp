@@ -17,13 +17,16 @@
  * backends. It has three well-known socket interfaces:
  *
  *   - The lircd interface is what the clients connects to. It has the same
- *     command interface as described in the 0.9.x lircd manpage,
+ *     legacy interface described in the 0.9.4 lircd manpage,
  *   - The backend interface is what the backends connects to. When a backend
- *     connects a registration sequence is initated.
+ *     connects a registration sequence is initated by lircd.
  *   - The control interface is used to send commands to specific backends.
  *     A new tool irtool exposes this as a command line application.
  *
- *  The dispatcher basically does three things:
+ *  For each connected backend there is also a named pipe where the backend sends
+ *  decoded events to lircd.
+ *
+ *  Lircd basically does three things:
  *
  *   - Any decoded event from any backend is broadcasted to all clients.
  *   - A command from a client is forwarded to the default backend.
@@ -102,35 +105,9 @@
 #define WHITE_SPACE " \t"
 
 static const logchannel_t logchannel = LOG_DISPATCH;
-static const int COMMAND_TIMEOUT_TICKS = 20;
 
-/* Forwards referenced in directive definition below. */
-
-static int get_default_backend_cmd(
-	int fd, const char* message, const char* arguments);
-static int list_backends_cmd(
-	int fd, const char* msg, const char* args);
-static int set_default_backend_cmd
-	(int fd, const char* message, const char* arguments);
-static int set_inputlog_cmd(
-	int fd, const char* message, const char* arguments);
-static int simulate_cmd(
-	int fd, const char* message, const char* arguments);
-static int send_once_cmd(
-	int fd, const char* message, const char* arguments);
-static int send_start_cmd(
-	int fd, const char* message, const char* arguments);
-static int send_stop_cmd(
-	int fd, const char* message, const char* arguments);
-static int stop_backend_cmd(
-	int fd, const char* message, const char* arguments);
-static int list_remotes_cmd(
-	int fd, const char* message, const char* arguments);
-static int list_codes_cmd(
-	int fd, const char* message, const char* arguments);
-static int set_transmitters_cmd(
-	int fd, const char* message, const char* arguments);
-static int version_cmd(int fd, const char* message, const char* arguments);
+static const int COMMAND_TIMEOUT_TICKS = 20;    /**< Command timeout (ticks).*/
+static const int HEARTBEAT_US = 50000;		/**< Timer tick slice. */
 
 struct protocol_directive {
 	const char* name;
@@ -138,32 +115,19 @@ struct protocol_directive {
 };
 
 
-static const struct protocol_directive directives[] = {
-	{ "LIST_BACKENDS",	 list_backends_cmd	    },
-	{ "STOP_BACKEND",	 stop_backend_cmd	    },
-	{ "SET_DEFAULT_BACKEND", set_default_backend_cmd    },
-	{ "GET_DEFAULT_BACKEND", get_default_backend_cmd    },
-	{ "SET-INPUTLOG",	 set_inputlog_cmd	    },
-	{ "SEND_ONCE",	    	 send_once_cmd		    },
-	{ "SEND_START",	    	 send_start_cmd		    },
-	{ "SEND_STOP",	    	 send_stop_cmd		    },
-	{ "LIST_REMOTES", 	 list_remotes_cmd	    },
-	{ "LIST_CODES", 	 list_codes_cmd		    },
-	{ "VERSION",		 version_cmd		    },
-	{ "SIMULATE",		 simulate_cmd		    },
-	{ "SET_TRANSMITTERS",	 set_transmitters_cmd	    },
-	{ NULL,			 NULL			    }
-};
+/** Forward */
+extern const struct protocol_directive directives[];
 
-
-static const int HEARTBEAT_US = 50000;
-
+/** Set by signal handlers, executed in main loop. */
 std::atomic<void (*)()> signal_handler(0);
 
+/** Decoded command line options and args. */
 static const struct options_t* options;
 
+/** Book-keeping data for all active sockets. */
 static FdList*  fdList(0);
 
+/** Current default client file descriptor. */
 static int default_backend = -1;
 
 
@@ -194,6 +158,7 @@ class Simvalues {
 };
 
 
+/** Read a command from an open socket and execute it. */
 int get_command(int fd)
 {
 	int length;
@@ -223,7 +188,6 @@ int get_command(int fd)
 		end = strrchr(buffer, '\r');
 		if (end && end[1] == 0)
 			*end = 0;
-
 		directive = strtok(buffer, WHITE_SPACE);
 		if (directive == NULL) {
 			if (!send_error(fd, backup, "bad send packet\n"))
@@ -819,6 +783,7 @@ static void get_backend_data_path(int fd, std::string* path)
 }
 
 
+/** fdList->find argument. */
 static bool find_backend_by_type(const FdItem& item, int what)
 {
 	return item.kind == FdItem::BACKEND_CMD;
@@ -1018,8 +983,12 @@ void handle_data_socket_reply(int fd)
 		return;
 	}
 	if (it->replyParser->get_success()) {
-		log_debug("Final backend registration on %d", fd);
 		default_backend = fd;
+		std::string path;
+		get_backend_data_path(fd, &path);
+		unlink(path.c_str());
+		log_debug("Final backend registration on %d, removing %s",
+			  fd, path.c_str());
 	} else {
 		log_error("Backend data channel setup error: %s",
 			   it->replyParser->get_last_line());
@@ -1478,4 +1447,22 @@ int main(int argc, char** argv)
 
 	/* Not reached */
 	return EXIT_SUCCESS;
+};
+
+
+const struct protocol_directive directives[64] = {
+	{ "LIST_BACKENDS",	 list_backends_cmd	    },
+	{ "STOP_BACKEND",	 stop_backend_cmd	    },
+	{ "SET_DEFAULT_BACKEND", set_default_backend_cmd    },
+	{ "GET_DEFAULT_BACKEND", get_default_backend_cmd    },
+	{ "SET-INPUTLOG",	 set_inputlog_cmd	    },
+	{ "SEND_ONCE",	    	 send_once_cmd		    },
+	{ "SEND_START",	    	 send_start_cmd		    },
+	{ "SEND_STOP",	    	 send_stop_cmd		    },
+	{ "LIST_REMOTES", 	 list_remotes_cmd	    },
+	{ "LIST_CODES", 	 list_codes_cmd		    },
+	{ "VERSION",		 version_cmd		    },
+	{ "SIMULATE",		 simulate_cmd		    },
+	{ "SET_TRANSMITTERS",	 set_transmitters_cmd	    },
+	{ NULL,			 NULL			    }
 };
