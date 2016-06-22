@@ -22,7 +22,7 @@
 
 /** A classic pidfile, ensures there is only one instance. */
 class Pidfile {
-	protected:
+	private:
 		FILE* f = NULL;
 		char path[256];
 
@@ -34,10 +34,12 @@ class Pidfile {
 		    CANT_PARSE
 		};
 
-		explicit Pidfile(const char* path);
+		static Pidfile* instance();
+
+		Pidfile() {}
 
 		/** Create and lock the pidfile, updates otherpid if busy. */
-		lock_result lock();
+		lock_result lock(const char* path);
 
 		/** Release the lock and remove file. */
 		void close();

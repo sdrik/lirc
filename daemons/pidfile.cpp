@@ -28,19 +28,21 @@
 
 static const logchannel_t logchannel = LOG_LIB;
 
-Pidfile::Pidfile(const char* path)
+Pidfile* Pidfile::instance()
 {
-	strncpy(this->path, path, sizeof(this->path) - 1);
-	other_pid = -1;
+	static Pidfile* singleton(0);
+	if (singleton == 0)
+		singleton = new Pidfile();
+	return singleton;
 }
 
 
-
-Pidfile::lock_result Pidfile::lock()
+Pidfile::lock_result Pidfile::lock(const char* path)
 {
 	int fd;
 
-
+	strncpy(this->path, path, sizeof(this->path) - 1);
+	other_pid = -1;
 	fd = open(path, O_RDWR | O_CREAT, 0644);
 	if (fd > 0)
 		f = fdopen(fd, "r+");

@@ -16,9 +16,8 @@
 #include   <unistd.h>
 #include   <getopt.h>
 
-#include   "paths.h"
-#include   "lirc_config.h"
 #include   "config.h"
+#include   "lirc_config.h"
 #include   "lirc_private.h"
 
 #include   "lircd_options.h"

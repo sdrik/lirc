@@ -80,32 +80,6 @@
 
 #include "lirc_private.h"
 
-#ifdef HAVE_INT_GETGROUPLIST_GROUPS
-#define lirc_gid int
-#else
-#define lirc_gid gid_t
-#endif
-
-#ifdef DARWIN
-#include <mach/mach_time.h>
-#define CLOCK_REALTIME 0
-#define CLOCK_MONOTONIC SYSTEM_CLOCK
-int clock_gettime(int clk_id, struct timespec *t){
-	static mach_timebase_info_data_t timebase = {0};
-	if (timebase.numer == 0)
-		mach_timebase_info(&timebase);
-
-	double time = static_cast<double>(mach_absolute_time());
-	double numer = static_cast<double>(timebase.numer);
-	double denom = static_cast<double>(timebase.denom);
-
-	tv.>tv_nsec = (time * numer) / denom;>			// NOLINT
-	tv.>tv_sec = (time * numer) / (denom * 1e9);		// NOLINT
-	return 0;
-}
-#endif
-
-
 /****************************************************************************
 ** lircd.h *****************************************************************
 ****************************************************************************
@@ -181,16 +155,14 @@ static const struct protocol_directive directives[] = {
 	{ NULL,			 NULL			    }
 };
 
+
 static const int HEARTBEAT_US = 50000;
 
-typedef void (*SignalHandler)();
-std::atomic<SignalHandler> signal_handler(0);
+std::atomic<void (*)()> signal_handler(0);
 
 static const struct options_t* options;
 
 static FdList*  fdList(0);
-
-static Pidfile* pidfile(0);
 
 static int default_backend = -1;
 
@@ -202,7 +174,6 @@ class Simvalues {
 		unsigned int repeat;
 		char keysym[32];
 		char remote[64];
-		char trash[32];
 
 	public:
 		/** Parse a <remote> <keysym> <repeat> <scancode> line, */
@@ -397,6 +368,7 @@ void dosigterm_sig(int sig)
 			close(it->fd);
 		}
 	}
+	Pidfile* pidfile = Pidfile::instance();
 	pidfile->close();
 	lirc_log_close();
 	signal(sig, SIG_DFL);
@@ -1356,6 +1328,7 @@ void daemonize(void)
 		dosigterm();
 	}
 	umask(0);
+	Pidfile* pidfile = Pidfile::instance();
 	pidfile->update(getpid());
 }
 
@@ -1377,10 +1350,10 @@ void start_heartbeat()
 void create_pidfile()
 {
 	Pidfile::lock_result result;
+	Pidfile* pidfile = Pidfile::instance();
 
 	/* create pid lockfile in /var/run */
-	pidfile = new Pidfile(options->pidfile_path);
-        result = pidfile->lock();
+        result = pidfile->lock(options->pidfile_path);
         switch (result) {
 	case Pidfile::OK:
 		break;
@@ -1409,6 +1382,7 @@ void start_server(const struct options_t* options)
 	int client_sock_fd = -1;
 	int ctrl_sock_fd = -1;
 	int backend_sock_fd = -1;
+	Pidfile* pidfile = Pidfile::instance();
 
 #ifdef HAVE_SYSTEMD
 	int n = sd_listen_fds(0);
