@@ -9,13 +9,14 @@ BUILT_SOURCES               = lirc/input_map.inc
 endif
 
 AM_CPPFLAGS                 = -I$(top_srcdir) -Wall -Wp,-D_FORTIFY_SOURCE=2 \
+                              -std=c++11
                               @osflags@
 
 lib_LTLIBRARIES             = liblirc.la liblirc_client.la liblirc_driver.la \
                               libirrecord.la
 
-liblirc_la_SOURCES          = config_file.c \
-                              ciniparser.c \
+liblirc_la_SOURCES          = ciniparser.c \
+                              config_file.c \
                               dictionary.c \
                               driver.c \
                               drv_admin.c \
@@ -24,6 +25,8 @@ liblirc_la_SOURCES          = config_file.c \
                               ir_remote.c \
                               lirc_log.c \
                               lirc_options.c \
+                              lircd_messages.cpp \
+                              pidfile.cpp \
                               receive.c  \
                               release.c \
                               reply_parser.cpp \
@@ -72,6 +75,7 @@ dist_lircinclude_HEADERS    = config_file.h \
                               lirc_config.h \
                               lirc_log.h \
                               lirc_options.h \
+                              lircd_messages.h \
                               release.h \
                               reply_parser.h \
                               receive.h \

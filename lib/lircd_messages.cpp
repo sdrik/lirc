@@ -2,7 +2,7 @@
 ** commands.cpp *******************************************************
 ***********************************************************************
 *
-* lircd command - read and write command packets.
+* lircd message - read and write command packets.
 *
 * Copyright (c) 2015 Alec Leamas
 *
@@ -22,8 +22,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include "reply_parser.h"
-#include "commands.h"
+#include "lircd_messages.h"
 
 
 #ifndef PACKET_SIZE
@@ -50,6 +49,31 @@ static const char* const protocol_string[] = {
 	"SUCCESS\n",
 	"SIGHUP\n"
 };
+
+
+static int count_newlines(const char* s, int  maxsize = -1)
+{
+	int n = 0;
+
+	if (maxsize == -1)
+		maxsize = strlen(s);
+	for (int i = 0; i < maxsize; i++) {
+		if (s[i] == '\0')
+			break;
+		if (s[i] == '\n')
+			n += 1;
+	}
+	return n;
+}
+
+
+static void strip_trailing_nl(char* buff)
+{
+	char* nl = strrchr(buff, '\n');
+	if (nl != NULL)
+		*nl = '\0';
+}
+
 
 
 /* A safer write(), since sockets might not write all but only some of the
@@ -130,28 +154,29 @@ int send_success(int fd, const char* message)
 }
 
 
-int count_newlines(const char* s, int  maxsize = -1)
+int send_success(int fd, const char* message, const char* data)
 {
-	int n = 0;
+	// FIXME: Handle newline in message
+	char buff[128];
+        char line_count[32];
+	char* nl;
+	std::string s("");
 
-	if (maxsize == -1)
-		maxsize = strlen(s);
-	for (int i = 0; i < maxsize; i++) {
-		if (s[i] == '\0')
-			break;
-		if (s[i] == '\n')
-			n += 1;
-	}
-	return n;
-}
-
-void strip_trailing_nl(char* buff)
-{
-	char* nl = strrchr(buff, '\n');
-	if (nl != NULL)
+	strncpy(buff, message, sizeof(buff) - 1);
+	nl = strrchr(buff, '\n');
+	if (nl != NULL && *(nl + 1) == '\0')
 		*nl = '\0';
+	snprintf(line_count, sizeof(line_count),
+		 "%d\n", count_newlines(data));
+	s += protocol_string[P_BEGIN] + std::string(buff) + "\n";
+	s += protocol_string[P_SUCCESS];
+	s += protocol_string[P_DATA];
+	s += line_count;
+	s += data;
+	s += protocol_string[P_END];
+	log_trace("Sending output: %s", s.c_str());
+	return write_socket(fd, s.c_str(), s.size());
 }
-
 
 int send_error(int fd, const char* message_arg, const char* format_str, ...)
 {
@@ -186,31 +211,6 @@ int send_error(int fd, const char* message_arg, const char* format_str, ...)
 }
 
 
-int send_simple_reply(int fd, const char* message, const char* data)
-{
-	// FIXME: Handle newline in message
-	char buff[128];
-        char line_count[32];
-	char* nl;
-	std::string s("");
-
-	strncpy(buff, message, sizeof(buff) - 1);
-	nl = strrchr(buff, '\n');
-	if (nl != NULL && *(nl + 1) == '\0')
-		*nl = '\0';
-	snprintf(line_count, sizeof(line_count),
-		 "%d\n", count_newlines(data));
-	s += protocol_string[P_BEGIN] + std::string(buff) + "\n";
-	s += protocol_string[P_SUCCESS];
-	s += protocol_string[P_DATA];
-	s += line_count;
-	s += data;
-	s += protocol_string[P_END];
-	log_trace("Sending output: %s", s.c_str());
-	return write_socket(fd, s.c_str(), s.size());
-}
-
-
 int send_sighup(int fd)
 {
 	std::string s("");
@@ -221,3 +221,43 @@ int send_sighup(int fd)
 	log_debug("Sending sighup.");
 	return write_socket(fd, s.c_str(), s.size());
 }
+
+
+/** Broadcast message to list of fds. Returns list of unwritable fds. */
+std::vector<int> broadcast_message(const char* message,
+				   const std::vector<int>& fds)
+{
+	int len = strlen(message);
+	std::vector<int> bad_fds;
+
+	for (auto it = fds.begin(); it != fds.end(); it++) {
+		log_trace("writing to client %d: %s", *it, message);
+		if (write_socket(*it, message, len) < len)
+			bad_fds.push_back(*it);
+	}
+	return bad_fds;
+}
+
+
+/** Return vector of {firstword, remainder} in nl-terminated str. */
+std::vector<std::string> split_once(const char* str)
+{
+	std::vector<std::string> result;
+	if (str == NULL || *str =='\0')
+		return result;
+	char* buff = reinterpret_cast<char*>(alloca(strlen(str) + 2));
+	strncpy(buff, str, strlen(str));
+
+	char* token = strtok(buff, " \t\r\n");
+	if (token == NULL || *token == '\0')
+		return result;
+	result.push_back(token);
+
+	token = strtok(NULL, "\n");
+	if (token == NULL || *token == '\0')
+		return result;
+	result.push_back(token);
+	return result;
+}
+
+

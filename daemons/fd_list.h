@@ -112,6 +112,7 @@ class FdList {
 		ItemIterator find_fd(int fd);
 		ItemIterator find(int what, fd_int_predicate);
 		ItemIterator find(const char* what, fd_str_predicate);
+		std::vector<int> select_fds(int what, fd_int_predicate);
 
 		/** Return snapshot of current items + corresponding pollfd */
 		void get_pollfds(std::vector<FdItem>* items,

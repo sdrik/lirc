@@ -122,7 +122,7 @@ static void lircd_parse_options(int argc, char** const argv)
 			printf("lircd %s\n", VERSION);
 			exit(EXIT_SUCCESS);
 		case 'O':
-			break;
+		break;
 		case 'n':
 			options_set_opt("lircd:nodaemon", "True");
 			break;

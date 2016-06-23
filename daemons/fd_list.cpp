@@ -82,6 +82,19 @@ ItemIterator FdList::find(int what, bool (*cond)(const FdItem&, int))
 }
 
 
+std::vector<int> FdList::select_fds(int what, bool (*cond)(const FdItem&, int))
+{
+	ItemIterator it;
+	std::vector<int> selected;
+
+	for (it = fd_list.begin(); it != fd_list.end(); it += 1) {
+		if (cond((*it), what))
+			selected.push_back(it->fd);
+	}
+	return selected;
+}
+
+
 ItemIterator FdList::find(const char* what,
 			  bool (*cond)(const FdItem&, const char*))
 {

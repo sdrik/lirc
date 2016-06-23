@@ -15,23 +15,23 @@ send_log "Timeout: $timeout\n"
 
 while (1) {
     expect {
-        "SET-DATA-SOCKET*\n" {
+        "SET_DATA_SOCKET*\n" {
             set words [split $expect_out(0,string)]
             set backend_data [lindex $words 1]
             send_log "Backend data socket: $backend_data\n"
             set data_fp [open $backend_data w]
             send "BEGIN\n"
-            send "SET-DATA-SOCKET\n"
+            send "SET_DATA_SOCKET\n"
             send "SUCCESS\n"
             send "END\n"
         }
-        "GET-ID*\n"  {
+        "GET_BACKEND_INFO*\n"  {
             send "BEGIN\n"
-            send "GET-ID\n"
+            send "GET_BACKEND_INFO\n"
             send "SUCCESS\n"
             send "DATA\n"
             send "1\n"
-            send  "$pid default $device"
+            send  "std $pid default $device"
 	    send "\n"
             send "END\n"
         }

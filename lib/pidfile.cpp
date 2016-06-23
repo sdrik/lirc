@@ -59,7 +59,7 @@ Pidfile::lock_result Pidfile::lock(const char* path)
 	(void)fprintf(f, "%d\n", getpid());
 	(void)fflush(f);
 	if (ftruncate(fileno(f), ftell(f)) != 0)
-		log_perror_warn("lircd: ftruncate()");
+		log_perror_warn("lircd: pidfile ftruncate() error");
 	return OK;
 }
 
@@ -77,5 +77,5 @@ void Pidfile::update(pid_t pid)
 	fprintf(f, "%d\n", pid);
 	fflush(f);
 	if (ftruncate(fileno(f), ftell(f)) != 0)
-		log_perror_warn("lircd: ftruncate()");
+		log_perror_warn("lircd: pidfile ftruncate() error");
 }
