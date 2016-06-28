@@ -4,8 +4,8 @@
 #define tag     devel
 
 Name:           lirc
-Version:        0.9.4
-Release:        %{?tag:0.}4%{?tag:.}%{?tag}%{?dist}
+Version:        0.9.4a
+Release:        %{?tag:0.}1%{?tag:.}%{?tag}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
 %global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}/
@@ -17,16 +17,6 @@ URL:            http://www.lirc.org/
 Source0:        %{?released:%{repo}}%{name}-%{version}%{?tag:-}%{?tag}.tar.gz
 Source1:        README.fedora
 Source2:        99-remote-control-lirc.rules
-                # Config only, cannot be upstreamed.
-Patch1:         0001-Changing-effective-user-default.patch
-Patch2:         0008-plugins-devinput-Make-the-list-devices-support-avail.patch
-Patch3:         0003-lib-use-proper-linking-method-to-avoid-parallel-buil.patch
-Patch4:         0003-lirc.org-Bugfix.patch
-Patch5:         0010-lircd-liblirc_client-Fix-freeaddrinfo-handling-195.patch
-Patch6:         0011-lirc.org-Update.patch
-Patch7:         0012-plugins-girs.c-Enable-reception-after-sending.patch
-Patch8:         0013-plugins-uirt2_raw-Reset-device-to-UIR-mode-on-deinit.patch
-
 
 BuildRequires:  alsa-lib-devel
 Buildrequires:  autoconf
@@ -190,16 +180,9 @@ full support for the ftdi device.
 
 %prep
 %setup -qn %{name}-%{version}%{?tag}
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
-%patch4 -p1
-%patch5 -p1
-%patch6 -p1
-%patch7 -p1
-%patch8 -p1
 sed -i -e 's|/usr/local/etc/|/etc/|' contrib/irman2lirc
-sed -i -e 's/^#debug/#loglevel/' lirc_options.conf
+sed -i -e 's/#effective-user/effective-user /' lirc_options.conf
+sed -i -e '\|/usr/bin/env|s|python|python3|' tools/make_rel_symlink.py
 
 
 %build
@@ -351,6 +334,11 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_udevrulesdir}/99-remote-control-lirc.rules
 
 %changelog
+* Tue Jun 28 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4a-1
+- New upstream release
+- Patches upstreamed
+- Fixes #1350750, bad systemd files syntax.
+
 * Thu Jun 02 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-4
 - Adding upstream patches:
   + Fix intermittent parallel build errors.

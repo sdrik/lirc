@@ -1,0 +1,5 @@
+[submodule "sources"]
+        path = sources
+        url = git://git.code.sf.net/p/lirc/git
+        branch = release
+

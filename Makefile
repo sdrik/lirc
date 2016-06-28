@@ -2,7 +2,7 @@
 PKG_VERSION    = $(shell grep VERSION sources/VERSION  2>/dev/null \
 			    | sed -e 's/.*=//' -e 's/"//g' || echo "unbuilt")
 
-FEDORA_VERSION = 0.9.4
+FEDORA_VERSION = 0.9.4a
 FEDORA_REL     = 1
 
 UPSTREAM_SRC   = $(shell cd sources; git ls-files | sed 's|^|sources/|')
