@@ -32,7 +32,7 @@ Creating the source package is also tested on Fedora. This requires
 leamas's dpkg-addons repo and some packages:
 
     # dnf copr enable leamas/dpkg-addons
-    # dnf install dpkg-addons dpkg dpkg-dev devscripts
+    # dnf install dpkg-addons dpkg dpkg-dev devscripts dh-python dh-systemd
 
 The imported upstream lirc sources lives in the "sources" submodule. It
 typically is committed as last release i. e., the --recursive clone
@@ -81,7 +81,6 @@ ubuntu distro instead of a debian one i. e.,
 
     $ sudo pbuilder create --distribution trusty  --override-config
     ## Or 'xenial'.
-r
 
 
 ### Building a patched version

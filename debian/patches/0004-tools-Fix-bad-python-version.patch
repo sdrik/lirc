@@ -1,7 +1,7 @@
-From 07636c75d26fc5b7a86d88d9af712388bd9d00f6 Mon Sep 17 00:00:00 2001
-From: Alec Leamas <leamas.alec@gmail.com>
+Author: Alec Leamas <leamas.alec@gmail.com>
 Date: Tue, 28 Jun 2016 22:09:30 +0200
-Subject: [PATCH] tools: Fix bad python version
+Description: [PATCH] tools: Fix bad python version requiring python2
+Forwarded: https://sourceforge.net/p/lirc/git/ci/4e3c97ce3062d97b1a6
 
 ---
  tools/make_rel_symlink.py | 2 +-
@@ -14,9 +14,9 @@ index ff0403a..896637f 100755
 @@ -1,4 +1,4 @@
 -#!/usr/bin/env python
 +#!/usr/bin/env python3
- 
+
  import os
  import os.path
--- 
+--
 2.5.5
 

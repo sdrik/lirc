@@ -1,7 +1,6 @@
-From 329e71443e65a287996bf161879d4ffd224de09f Mon Sep 17 00:00:00 2001
-From: Alec Leamas <leamas@nowhere.net>
+Author: Alec Leamas <leamas@nowhere.net>
 Date: Wed, 7 Oct 2015 19:45:36 +0200
-Subject: [PATCH] tools: remove configs symlink.
+Subject: tools: Remove configs symlink.
 
 dh_python3 crashes if there is a symlink in the site-dist/lirc
 directory, see Debian BTS #801719. Link restored in rules.
@@ -14,7 +13,7 @@ directory, see Debian BTS #801719. Link restored in rules.
 @@ -121,12 +121,6 @@
  	    $(DESTDIR)/$(pkgpythondir)/lirc-setup \
  	    $(DESTDIR)/$(bindir)/lirc-setup
- 
+
 -install-data-hook:
 -	rm -f $(DESTDIR)/$(pkgpythondir)/configs
 -	$(srcdir)/make_rel_symlink.py \

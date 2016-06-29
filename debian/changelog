@@ -1,20 +1,6 @@
-lirc (0.9.4a-1.2) experimental; urgency=medium
+lirc (0.9.4a-0.1) experimental; urgency=medium
+
   * Non-maintainer upload.
-  * New upstream release
-  * Patches from 0.9.4-2.1 upstreamed.
- -- Alec Leamas  <leamas.alec@gmail.com>  Wed, 29 Jun 2016 11:14:25 +0100
-
-lirc (0.9.4-2.1) experimental; urgency=medium
-  * Add upstream patch fixing intermittent parallel build errors.
-  * Add upstream patch fixing bad debug comment in lirc_options.conf.
-  * Add upstream patch fixing segfault using --connect (#195).
-  * Add upstream patch fixing lirc.org doc errors.
-  * Add upstream patch fixing disabled reception after send in girs.c
-  * Add upstream patch fixing bad state after deinit() in uirt2_raw.c
- -- Alec Leamas  <leamas.alec@gmail.com>  Thu, 02 Jun 2016 11:14:25 +0100
-
-lirc (0.9.4-1.3) experimental; urgency=medium
-
   * First shot on major upstream updates.
     - Re-packaged from scratch based on new dh primitives.
     - Thanks for help on debian-mentors!
@@ -44,6 +30,7 @@ lirc (0.9.4-1.3) experimental; urgency=medium
     - Fixes LP: #1029604 "mce remote doesn't work due to out of date
       lircd.conf.devinput".
     - Fixes LP: #1312287 "lircd start problem".
+  * The built-in irman support is moved to the lirc-drv-irman package.
   * Revised package structure: keep old liblircclient0 (renamed to
     liblirc-client0). Adding new packages liblirc0, liblirc-dev and
     lirc-doc. Former liblircclient-dev merged into new liblirc-dev.
@@ -65,8 +52,7 @@ lirc (0.9.4-1.3) experimental; urgency=medium
   * Enhance hardening flags.
   * Add a lintian pbuilder test, this requires --hookdir and B92-test-pkg
     therein.
-  * The built-in irman support is moved to the lirc-drv-irman package.
-  * Tested (build-wise) on jessie, stretch and sid.
+  * Tested (build-wise) on stretch and sid.
 
  -- Alec Leamas  <leamas.alec@gmail.com>  Thu, 26 May 2016 11:14:25 +0100
 

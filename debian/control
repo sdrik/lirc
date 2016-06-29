@@ -10,35 +10,27 @@ Uploaders:
 Vcs-Git: git://git.code.sf.net/p/lirc/git -b debian
 Vcs-Browser: https://sourceforge.net/p/lirc/git/ci/debian/tree/
 Build-Depends:
- autotools-dev,
- bzip2,
  debhelper (>= 9),
- devscripts,
  dh-autoreconf,
  dh-systemd,
  dh-python,
  doxygen,
+ kmod,
  libasound2-dev [linux-any kfreebsd-any],
- libftdi1-dev | libftdi-dev,
- libice-dev,
- libsm-dev,
- libsystemd-daemon-dev | libsystemd-dev,
+ libftdi1-dev,
+ libsystemd-dev,
  libudev-dev,
- libusb-dev,
  libusb-1.0-0-dev [linux-any],
+ libusb-dev,
  libx11-dev,
- libxt-dev,
- lintian,
- logcheck,
  man2html-base,
- module-init-tools | kmod,
- portaudio19-dev | libportaudio19-dev,
  pkg-config,
+ portaudio19-dev,
  python3,
  python3-yaml,
+ systemd,
  xsltproc
-# libjs-jquery    (See rules)
-
+# libjs-jquery
 
 Package: lirc
 Architecture: any
@@ -71,7 +63,7 @@ Section: doc
 Depends:
  ${misc:Depends},
  lsb-base
-# libjs-jquery,    (See lintian overrides)
+# libjs-jquery
 Replaces:
  lirc (<< 0.9.1)
 Breaks:
