@@ -1,10 +1,9 @@
-lirc (0.9.4a-1.2) experimental; urgency=medium
-  * Non-maintainer upload.
+lirc (0.9.4a-1.2) @distribution@; urgency=medium
   * New upstream release
   * Patches from 0.9.4-2.1 upstreamed.
  -- Alec Leamas  <leamas.alec@gmail.com>  Wed, 29 Jun 2016 11:14:25 +0100
 
-lirc (0.9.4-2.1) experimental; urgency=medium
+lirc (0.9.4-2.1) @distribution@; urgency=medium
   * Add upstream patch fixing intermittent parallel build errors.
   * Add upstream patch fixing bad debug comment in lirc_options.conf.
   * Add upstream patch fixing segfault using --connect (#195).
@@ -13,7 +12,7 @@ lirc (0.9.4-2.1) experimental; urgency=medium
   * Add upstream patch fixing bad state after deinit() in uirt2_raw.c
  -- Alec Leamas  <leamas.alec@gmail.com>  Thu, 02 Jun 2016 11:14:25 +0100
 
-lirc (0.9.4-1.3) experimental; urgency=medium
+lirc (0.9.4-1.3) @distribution@; urgency=medium
 
   * First shot on major upstream updates.
     - Re-packaged from scratch based on new dh primitives.

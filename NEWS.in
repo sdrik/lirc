@@ -1,4 +1,4 @@
-lirc (0.9.4a-1.2) experimental; urgency=medium
+lirc (0.9.4a-1.2) @distribution@; urgency=medium
 
    The 0.9.4 configuration needs to be manually updated.
 
