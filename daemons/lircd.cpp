@@ -455,7 +455,7 @@ void handle_data_socket_reply(int fd)
 		get_backend_data_path(fd, &path);
 		unlink(path.c_str());
 		log_debug("Final backend registration on %s(%d), removing %s",
-			  it->id, fd, path.c_str());
+			  it->id.c_str(), fd, path.c_str());
 	} else {
 		log_error("Backend data channel setup error: %s",
 			   it->replyParser->get_last_line());
@@ -480,7 +480,7 @@ bool handle_local_reply(const char* message, int fd)
 			} else if (cmd == "SET_DATA_SOCKET") {
 				handle_data_socket_reply(fd);
 			} else {
-				log_warn("Unknown backend reply: %s", cmd);
+				log_warn("Unknown backend reply: %s", cmd.c_str());
 			}
 		} else {
 			log_error("Cannot handle backend reply: %s",
@@ -633,25 +633,25 @@ void process_item_input(FdItem item)
         	add_client(fdList->ctrl_socket(), fdlist_add_ctrl_client);
 		break;
 	case FdItem::BACKEND_DATA:
-		if (!get_line(item.fd, broadcast_message)) {
+		if (!get_line(item.fd, &item.lineBuffer, broadcast_message)) {
 			remove_and_log(item.fd,
 				       "backend_data: get_line() fails");
 			find_new_default_backend();
 		}
 		break;
 	case FdItem::BACKEND_CMD:
-		if (!get_line(item.fd, handle_backend_line)) {
+		if (!get_line(item.fd, &item.lineBuffer, handle_backend_line)) {
 			remove_and_log(item.fd,
 				       "backend_cmd: get_line() fails");
 			find_new_default_backend();
 		}
 		break;
 	case FdItem::CLIENT_STREAM:
-		if (!get_line(item.fd, handle_client_line))
+		if (!get_line(item.fd, &item.lineBuffer, handle_client_line))
 			remove_and_log(item.fd, "client: get_line() fails");
 		break;
 	case FdItem::CTRL_STREAM:
-		if (!get_line(item.fd, handle_ctrl_cmd))
+		if (!get_line(item.fd, &item.lineBuffer, handle_ctrl_cmd))
 			remove_and_log(item.fd, "control: get_line() fails");
 		break;
 	}

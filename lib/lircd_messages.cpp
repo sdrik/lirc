@@ -259,5 +259,3 @@ std::vector<std::string> split_once(const char* str)
 	result.push_back(token);
 	return result;
 }
-
-

@@ -440,62 +440,28 @@ static int set_transmitters_cmd(int fd, const char* msg, const char* args) {
 
 
 /**
- * Break input into lines annd invoke line_handler(line, fd) for each line.
+ * Break input into lines and invoke line_handler(line, fd) for each line.
  * The line_handler func returns true if the socket is functional and can be
- * used.
- *
- * @bug  Recursive read(2) blocks main loop.
+ * used; same goes for get_line().
  */
-int get_line(int fd, bool (*line_handler)(const char* line, int fd))
+bool get_line(int fd, LineBuffer* lineBuffer, LineHandler line_handler)
 {
 	int length;
 	char buffer[PACKET_SIZE + 1];
-	char* end;
-	int packet_length;
-	std::string s;
-	size_t pos;
 
 	length = read_timeout(fd, buffer, PACKET_SIZE, 5);
-	packet_length = 0;
-	while (length > packet_length) {
-		buffer[length] = 0;
-		end = strchr(buffer, '\n');
-		if (end == NULL) {
-			log_error("bad send packet: \"%s\"", buffer);
-			/* remove clients that behave badly */
-			return 0;
-		}
-		s = std::string(buffer, end - buffer + 1);
-		log_trace("Received input on %d: '%s'", fd, s.c_str());
-		packet_length = s.size();
-
-		/* remove DOS line endings */
-		pos = s.rfind("\r");
-		if (pos == s.size() - 1)
-			s = s.substr(0, s.size() - 1);
-
-		if (!line_handler(s.c_str(), fd))
-			return 0;
-
-		if (length > packet_length) {
-			int new_length;
-
-			memmove(buffer, buffer + packet_length, length - packet_length + 1);
-			if (strchr(buffer, '\n') == NULL) {
-				new_length =
-					read_timeout(fd, buffer + length - packet_length,
-						     PACKET_SIZE - (length - packet_length), 5);
-				if (new_length > 0)
-					length = length - packet_length + new_length;
-				else
-					length = new_length;
-			} else {
-				length -= packet_length;
-			}
-			packet_length = 0;
-		}
+	if (length < 0 ) {
+		log_debug("get_line: No data from read_timeout()");
+		return false;
 	}
-	return length != 0;     /* length == 0 -> EOF: connection closed by client */
+	lineBuffer->append(buffer, length);
+	log_trace("Received input on %d: '%s'", fd, lineBuffer->c_str());
+	while (lineBuffer->has_lines()) {
+		std::string line = lineBuffer->get_next_line();
+		if (!line_handler(line.c_str(), fd))
+			return false;
+	}
+	return true;
 }
 
 

@@ -22,6 +22,7 @@
 #include <vector>
 #include <string>
 
+#include "line_buffer.h"
 #include "reply_parser.h"
 
 
@@ -61,6 +62,7 @@ class FdItem {
 		ReplyParser* replyParser;
 		std::string  expected;       /**< Expected backend command. */
 		int	     ticks;          /**< Timeout counter. */
+		LineBuffer   lineBuffer;     /**< Input line buffering. */
 
 		FdItem(int fd, fd_kind kind, pid_t pid = -1);
 		FdItem();

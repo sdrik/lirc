@@ -195,6 +195,8 @@ static int send_start(int fd, char* message, char* arguments);
 static int send_stop(int fd, char* message, char* arguments);
 static int send_core(int fd, char* message, char* arguments, int once);
 static int version(int fd, char* message, char* arguments);
+static int get_backend_info(int fd, char* message, char* arguments);
+static int set_data_socket(int fd, char* message, char* arguments);
 
 struct protocol_directive {
 	const char* name;
@@ -236,6 +238,8 @@ static const struct protocol_directive directives[] = {
 	{ "DRV_OPTION",	      drv_option       },
 	{ "VERSION",	      version	       },
 	{ "SET_TRANSMITTERS", set_transmitters },
+	{ "GET_BACKEND_INFO", get_backend_info },
+	{ "SET_DATA_SOCKET",  set_data_socket  },
 	{ "SIMULATE",	      simulate	       },
 	{ NULL,		      NULL	       }
 	/*
@@ -265,6 +269,9 @@ static const char* const protocol_string[] = {
 /* Used to be depending on FD_SETSIZE, but using poll() it's now arbitrary. */
 static const int MAX_PEERS  = 256;
 static const int MAX_CLIENTS = 256;
+
+/** The lircd input fifo, opened by set_backend_fifo(). */
+static int events_fd;
 
 static int sockfd, sockinet;
 static int do_shutdown;
@@ -996,14 +1003,8 @@ void start_server(mode_t permission, int nodaemon, loglevel_t loglevel)
 {
 	struct sockaddr_un serv_addr;
 	struct sockaddr_in serv_addr_in;
-	struct stat s;
-	int ret;
-	int new_socket = 1;
+	int r;
 	int fd;
-
-#ifdef HAVE_SYSTEMD
-	int n;
-#endif
 
 	lirc_log_open("lircd", nodaemon, loglevel);
 
@@ -1035,61 +1036,21 @@ void start_server(mode_t permission, int nodaemon, loglevel_t loglevel)
 		log_perror_warn("lircd: ftruncate()");
 	ir_remote_init(options_getboolean("lircd:dynamic-codes"));
 
-	/* create socket */
-	sockfd = -1;
+	/* open lircd backend socket */
 	do_shutdown = 0;
-#ifdef HAVE_SYSTEMD
-	n = sd_listen_fds(0);
-	if (n > 1) {
-		fprintf(stderr, "Too many file descriptors received.\n");
-		goto start_server_failed0;
-	} else if (n == 1) {
-		sockfd = SD_LISTEN_FDS_START + 0;
-	}
-#endif
+	sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (sockfd == -1) {
-		sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
-		if (sockfd == -1) {
-			perror("Could not create socket");
-			goto start_server_failed0;
-		}
-		do_shutdown = 1;
-
-		/*
-		 * get owner, permissions, etc.
-		 * so new socket can be the same since we
-		 * have to delete the old socket.
-		 */
-		ret = stat(lircdfile, &s);
-		if (ret == -1 && errno != ENOENT) {
-			perrorf("Could not get file information for %s\n",
-				lircdfile);
-			goto start_server_failed1;
-		}
-		if (ret != -1) {
-			new_socket = 0;
-			ret = unlink(lircdfile);
-			if (ret == -1) {
-				perrorf("Could not delete %s", lircdfile);
-				goto start_server_failed1;
-			}
-		}
-
-		serv_addr.sun_family = AF_UNIX;
-		strcpy(serv_addr.sun_path, lircdfile);
-		if (bind(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1) {
-			perrorf("Could not assign address to socket%s", lircdfile);
-			goto start_server_failed1;
-		}
-
-		if (new_socket ? chmod(lircdfile, permission)
-		    : (chmod(lircdfile, s.st_mode) == -1 || chown(lircdfile, s.st_uid, s.st_gid) == -1)
-		    ) {
-			perrorf("Could not set file permissions on %s", lircdfile);
-			goto start_server_failed1;
-		}
-
-		listen(sockfd, 3);
+		perror("Could not create socket");
+		goto start_server_failed0;
+	}
+	do_shutdown = 1;
+	memset(&serv_addr, 0, sizeof(serv_addr));
+	serv_addr.sun_family = AF_UNIX;
+	snprintf(serv_addr.sun_path, sizeof(serv_addr.sun_path), lircdfile);
+	r = connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+	if (r != 0) {
+		perror("Cannot connect to lircd");
+		goto start_server_failed0;
 	}
 	nolinger(sockfd);
 
@@ -1436,6 +1397,7 @@ static int list(int fd, char* message, char* arguments)
 	return send_name(fd, message, code);
 }
 
+
 static int set_transmitters(int fd, char* message, char* arguments)
 {
 	char* next_arg = NULL;
@@ -1485,6 +1447,10 @@ void broadcast_message(const char* message)
 	int len, i;
 
 	len = strlen(message);
+	if (events_fd >= 0)
+		write_socket(events_fd, message, len);
+	else
+		log_notice("No fifo, dropping decoded event.");
 
 	for (i = 0; i < clin; i++) {
 		log_trace("writing to client %d: %s", i, message);
@@ -1544,15 +1510,82 @@ simulate_invalid_event:
 	return send_error(fd, message, "invalid event\n");
 }
 
+
+static int get_backend_info(int fd, char* message, char* arguments)
+{
+	int r;
+	char buff[128];
+
+	snprintf(buff, sizeof(buff), "std %d %s %s\n",
+		 getpid(), curr_driver->name, curr_driver->device);
+	r = write_socket_len(fd, protocol_string[P_BEGIN]) &&
+		write_socket_len(fd, message) &&
+		write_socket_len(fd, protocol_string[P_SUCCESS]) &&
+		write_socket_len(fd, protocol_string[P_DATA]) &&
+		write_socket_len(fd, "1\n") &&
+		write_socket_len(fd, buff) &&
+		write_socket_len(fd, protocol_string[P_END]);
+	return r ? 1 : 0;
+}
+
+
+/** Trim leading and trailing space in s, return new string. */
+static char* trim(char* s)
+{
+	char* end;
+
+	while (isspace(*s) && *s != '\0')
+		s += 1;
+	end = s + strlen(s) - 1;
+	while (end > s && isspace(*end))
+		end -= 1;
+	if (isspace(*end))
+		*end = '\0';
+	return s;
+}
+
+
+/** Set the socket used to send decoded events to lircd. */
+static int set_data_socket(int fd, char* message, char* arguments)
+{
+	char* args = trim(arguments);
+	char buff[128];
+
+	if (events_fd >= 0) {
+		log_notice("Re-opening new events fifo.");
+		close(events_fd);
+		events_fd = -1;
+	}
+	events_fd = open(args, O_WRONLY);
+	if (events_fd < 0){
+		send_error(fd, message,
+			   "Cannot open event fifo %s", args);
+		return 0;
+	}
+	strncpy(buff, message, sizeof(buff) - 1);
+	char* ws = strchr(buff, ' ');
+	if (ws != NULL) {
+		*ws = '\n';
+		ws += 1;
+		if (ws < (buff + sizeof(buff) - 1))
+			*ws = '\0';
+	}
+	send_success(fd, buff);
+	return 1;
+}
+
+
 static int send_once(int fd, char* message, char* arguments)
 {
 	return send_core(fd, message, arguments, 1);
 }
 
+
 static int send_start(int fd, char* message, char* arguments)
 {
 	return send_core(fd, message, arguments, 0);
 }
+
 
 static int send_core(int fd, char* message, char* arguments, int once)
 {
@@ -1934,10 +1967,7 @@ void free_old_remotes(void)
 
 struct pollfd_byname {
 	struct pollfd sockfd;
-	struct pollfd sockinet;
 	struct pollfd curr_driver;
-	struct pollfd clis[MAX_CLIENTS];
-	struct pollfd peers[MAX_PEERS];
 };
 
 #define POLLFDS_SIZE (sizeof(struct pollfd_byname)/sizeof(pollfd))
@@ -1960,7 +1990,7 @@ static int mywaitfordata(unsigned long maxusec)                    // NOLINT
 			/* handle signals */
 			if (term)
 				dosigterm(termsig);
-			/* never reached */
+				/* Not reached */
 			if (hup) {
 				dosighup(SIGHUP);
 				hup = 0;
@@ -1976,38 +2006,12 @@ static int mywaitfordata(unsigned long maxusec)                    // NOLINT
 			poll_fds.byname.sockfd.fd = sockfd;
 			poll_fds.byname.sockfd.events = POLLIN;
 
-			if (listen_tcpip) {
-				poll_fds.byname.sockinet.fd = sockinet;
-				poll_fds.byname.sockinet.events = POLLIN;
-			}
 			if (use_hw() && curr_driver->rec_mode != 0 && curr_driver->fd != -1) {
 				poll_fds.byname.curr_driver.fd = curr_driver->fd;
 				poll_fds.byname.curr_driver.events = POLLIN;
 			}
 
-			for (i = 0; i < clin; i++) {
-				/* Ignore this client until codes have been
-				 * sent and it will get an answer. Otherwise
-				 * we could mix up answer packets and send
-				 * them back in the wrong order. */
-				if (clis[i] != repeat_fd) {
-					poll_fds.byname.clis[i].fd = clis[i];
-					poll_fds.byname.clis[i].events = POLLIN;
-				}
-			}
-			timerclear(&tv);
 			reconnect = 0;
-			for (i = 0; i < peern; i++) {
-				if (peers[i]->socket != -1) {
-					poll_fds.byname.peers[i].fd = peers[i]->socket;
-					poll_fds.byname.peers[i].events = POLLIN;
-				} else if (timerisset(&tv)) {
-					if (timercmp(&tv, &peers[i]->reconnect, >))
-						tv = peers[i]->reconnect;
-				} else {
-					tv = peers[i]->reconnect;
-				}
-			}
 			if (timerisset(&tv)) {
 				gettimeofday(&now, NULL);
 				if (timercmp(&now, &tv, >)) {
@@ -2084,8 +2088,6 @@ static int mywaitfordata(unsigned long maxusec)                    // NOLINT
 					return 0;
 				maxusec -= time_elapsed(&start, &now);
 			}
-			if (reconnect)
-				connect_to_peers();
 		} while (ret == -1 && errno == EINTR);
 
 		if (curr_driver->fd == -1 && use_hw() && curr_driver->init_func) {
@@ -2095,38 +2097,8 @@ static int mywaitfordata(unsigned long maxusec)                    // NOLINT
 			setup_hardware();
 			lirc_log_setlevel(oldlevel);
 		}
-		for (i = 0; i < clin; i++) {
-			if (poll_fds.byname.clis[i].revents & POLLIN) {
-				poll_fds.byname.clis[i].revents = 0;
-				if (get_command(clis[i]) == 0) {
-					remove_client(clis[i]);
-					i--;
-				}
-			}
-		}
-		for (i = 0; i < peern; i++) {
-			if (peers[i]->socket != -1 && poll_fds.byname.peers[i].revents & POLLIN) {
-				poll_fds.byname.peers[i].revents = 0;
-				if (get_peer_message(peers[i]) == 0) {
-					shutdown(peers[i]->socket, 2);
-					close(peers[i]->socket);
-					peers[i]->socket = -1;
-					peers[i]->connection_failure = 1;
-					gettimeofday(&peers[i]->reconnect, NULL);
-					peers[i]->reconnect.tv_sec += 5;
-				}
-			}
-		}
-
 		if (poll_fds.byname.sockfd.revents & POLLIN) {
-			poll_fds.byname.sockfd.revents = 0;
-			log_trace("registering local client");
-			add_client(sockfd);
-		}
-		if (poll_fds.byname.sockinet.revents & POLLIN) {
-			poll_fds.byname.sockinet.revents = 0;
-			log_trace("registering inet client");
-			add_client(sockinet);
+			get_command(poll_fds.byname.sockfd.fd);
 		}
 		if (use_hw() && curr_driver->rec_mode != 0
 		    && curr_driver->fd != -1

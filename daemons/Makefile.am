@@ -14,7 +14,7 @@ bin_PROGRAMS              = lircrcd
 lircrcd_SOURCES           = lircrcd.cpp
 lircrcd_LDADD             = ../lib/liblirc_client.la
 
-sbin_PROGRAMS             = lircd lircmd lircd-backend-tcp
+sbin_PROGRAMS             = lircd lircmd lircd-backend-tcp lircd-backend-std
 
 if HAVE_UINPUT
 sbin_PROGRAMS             += lircd-uinput
@@ -31,6 +31,9 @@ lircd_uinput_LDADD        = ../lib/liblirc.la
 
 lircd_backend_tcp_SOURCES = lircd-backend-tcp.cpp
 lircd_backend_tcp_LDADD   = ../lib/liblirc.la
+
+lircd_backend_std_SOURCES = lircd-backend-std.cpp
+lircd_backend_std_LDADD   = ../lib/liblirc.la
 
 lircmd_SOURCES            = lircmd.cpp
 lircmd_LDADD              = ../lib/liblirc.la
