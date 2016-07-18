@@ -130,18 +130,14 @@ static const char* const help =
 	"\t -O --options-file\t\tOptions file\n"
         "\t -i --immediate-init\t\tInitialize the device immediately at start\n"
 	"\t -n --nodaemon\t\t\tDon't fork to background\n"
-	"\t -p --permission=mode\t\tFile permissions for " LIRCD "\n"
 	"\t -H --driver=driver\t\tUse given driver (-H help lists drivers)\n"
 	"\t -d --device=device\t\tRead from given device\n"
 	"\t -U --plugindir=dir\t\tDir where drivers are loaded from\n"
-	"\t -l --listen[=[address:]port]\tListen for network connections\n"
-	"\t -c --connect=host[:port]\tConnect to remote lircd server\n"
 	"\t -o --output=socket\t\tOutput socket filename\n"
 	"\t -P --pidfile=file\t\tDaemon pid file\n"
 	"\t -L --logfile=file\t\tLog file path (default: use syslog)'\n"
 	"\t -D[level] --loglevel[=level]\t'info', 'warning', 'notice', etc., or 3..10.\n"
 	"\t -r --release[=suffix]\t\tAuto-generate release events\n"
-	"\t -a --allow-simulate\t\tAccept SIMULATE command\n"
 	"\t -Y --dynamic-codes\t\tEnable dynamic code generation\n"
 	"\t -A --driver-options=key:value[|key:value...]\n"
 	"\t\t\t\t\tSet driver options\n"
@@ -155,11 +151,8 @@ static const struct option lircd_options[] = {
 	{ "nodaemon",	    no_argument,       NULL, 'n' },
 	{ "immediate-init", no_argument,       NULL, 'i' },
 	{ "options-file",   required_argument, NULL, 'O' },
-	{ "permission",	    required_argument, NULL, 'p' },
 	{ "driver",	    required_argument, NULL, 'H' },
 	{ "device",	    required_argument, NULL, 'd' },
-	{ "listen",	    optional_argument, NULL, 'l' },
-	{ "connect",	    required_argument, NULL, 'c' },
 	{ "output",	    required_argument, NULL, 'o' },
 	{ "pidfile",	    required_argument, NULL, 'P' },
 	{ "plugindir",	    required_argument, NULL, 'U' },
@@ -167,7 +160,6 @@ static const struct option lircd_options[] = {
 	{ "debug",	    optional_argument, NULL, 'D' },  // compatibility
 	{ "loglevel",	    optional_argument, NULL, 'D' },
 	{ "release",	    optional_argument, NULL, 'r' },
-	{ "allow-simulate", no_argument,       NULL, 'a' },
 	{ "dynamic-codes",  no_argument,       NULL, 'Y' },
 	{ "driver-options", required_argument, NULL, 'A' },
 	{ "effective-user", required_argument, NULL, 'e' },
@@ -181,7 +173,6 @@ static const struct option lircd_options[] = {
 static int list(int fd, char* message, char* arguments);
 static int set_transmitters(int fd, char* message, char* arguments);
 static int set_inputlog(int fd, char* message, char* arguments);
-static int simulate(int fd, char* message, char* arguments);
 static int send_once(int fd, char* message, char* arguments);
 static int drv_option(int fd, char* message, char* arguments);
 static int send_start(int fd, char* message, char* arguments);
@@ -221,6 +212,7 @@ static const char* configfile = NULL;
 static FILE* pidf;
 static const char* pidfile = PIDFILE;
 static const char* lircdfile = LIRCD;
+static int sockfd;
 
 static const struct protocol_directive directives[] = {
 	{ "LIST",	      list	       },
@@ -233,7 +225,6 @@ static const struct protocol_directive directives[] = {
 	{ "SET_TRANSMITTERS", set_transmitters },
 	{ "GET_BACKEND_INFO", get_backend_info },
 	{ "SET_DATA_SOCKET",  set_data_socket  },
-	{ "SIMULATE",	      simulate	       },
 	{ NULL,		      NULL	       }
 	/*
 	 * {"DEBUG",debug},
@@ -266,7 +257,6 @@ static const int MAX_CLIENTS = 256;
 /** The lircd input fifo, opened by set_backend_fifo(). */
 static int events_fd;
 
-static int sockfd, sockinet;
 static int do_shutdown;
 
 static int clis[MAX_CLIENTS];
@@ -280,15 +270,12 @@ static loglevel_t loglevel_opt = LIRC_NOLOG;
 static int cli_type[MAX_CLIENTS];
 static int clin = 0; /* Number of clients */
 
-static int listen_tcpip = 0;
-static unsigned short int port = LIRC_INET_PORT;          // NOLINT
 static struct in_addr address;
 
 static struct peer_connection* peers[MAX_PEERS];
 static int peern = 0;
 
 static int daemonized = 0;
-static int allow_simulate = 0;
 static int userelease = 0;
 static bool is_open = true; /*< Are there clients expecting input? */
 
@@ -314,25 +301,6 @@ int max(int a, int b)
 	return a > b ? a : b;
 }
 
-/* cut'n'paste from fileutils-3.16: */
-
-#define isodigit(c) ((c) >= '0' && (c) <= '7')
-
-/* Return a positive integer containing the value of the ASCII
-* octal number S.  If S is not an octal number, return -1.  */
-
-static int oatoi(const char* s)
-{
-	register int i;
-
-	if (*s == 0)
-		return -1;
-	for (i = 0; isodigit(*s); ++s)
-		i = i * 8 + *s - '0';
-	if (*s)
-		return -1;
-	return i;
-}
 
 /* A safer write(), since sockets might not write all but only some of the
  * bytes requested */
@@ -629,10 +597,6 @@ void dosigterm(int sig)
 		shutdown(sockfd, 2);
 	close(sockfd);
 
-	if (listen_tcpip) {
-		shutdown(sockinet, 2);
-		close(sockinet);
-	}
 	fclose(pidf);
 	(void)unlink(pidfile);
 	if (curr_driver->close_func)
@@ -945,10 +909,9 @@ int get_peer_message(struct peer_connection* peer)
 	return 1;
 }
 
-void start_server(mode_t permission, int nodaemon, loglevel_t loglevel)
+void start_server(int nodaemon, loglevel_t loglevel)
 {
 	struct sockaddr_un serv_addr;
-	struct sockaddr_in serv_addr_in;
 	int r;
 	int fd;
 
@@ -1001,36 +964,9 @@ void start_server(mode_t permission, int nodaemon, loglevel_t loglevel)
 	nolinger(sockfd);
 
 	drop_privileges();
-	if (listen_tcpip) {
-		int enable = 1;
-
-		/* create socket */
-		sockinet = socket(PF_INET, SOCK_STREAM, IPPROTO_IP);
-		if (sockinet == -1) {
-			perror("Could not create TCP/IP socket");
-			goto start_server_failed1;
-		}
-		(void)setsockopt(sockinet, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(enable));
-		serv_addr_in.sin_family = AF_INET;
-		serv_addr_in.sin_addr = address;
-		serv_addr_in.sin_port = htons(port);
-
-		if (bind(sockinet, (struct sockaddr*)&serv_addr_in, sizeof(serv_addr_in)) == -1) {
-			perror("could not assign address to socket");
-			goto start_server_failed2;
-		}
-
-		listen(sockinet, 3);
-		nolinger(sockinet);
-	}
 	log_trace("started server socket");
 	return;
 
-start_server_failed2:
-	if (listen_tcpip)
-		close(sockinet);
-start_server_failed1:
-	close(sockfd);
 start_server_failed0:
 	fclose(pidf);
 	(void)unlink(pidfile);
@@ -1403,55 +1339,6 @@ void broadcast_message(const char* message)
 			i--;
 		}
 	}
-}
-
-
-static int simulate(int fd, char* message, char* arguments)
-{
-	int i;
-	char* sim;
-	char* s;
-	char* space;
-
-	log_debug("simulate: enter");
-
-	if (!allow_simulate)
-		return send_error(fd, message, "SIMULATE command is disabled\n");
-	if (arguments == NULL)
-		return send_error(fd, message, "no arguments given\n");
-
-	s = arguments;
-	for (i = 0; i < 16; i++, s++)
-		if (!isxdigit(*s))
-			goto simulate_invalid_event;
-	if (*s != ' ')
-		goto simulate_invalid_event;
-	s++;
-	if (*s == ' ')
-		goto simulate_invalid_event;
-	for (; *s != ' '; s++)
-		if (!isxdigit(*s))
-			goto simulate_invalid_event;
-	s++;
-	space = strchr(s, ' ');
-	if (space == NULL || space == s)
-		goto simulate_invalid_event;
-	s = space + 1;
-	space = strchr(s, ' ');
-	if (strlen(s) == 0 || space != NULL)
-		goto simulate_invalid_event;
-
-	sim = reinterpret_cast<char*>(malloc(strlen(arguments) + 1 + 1));
-	if (sim == NULL)
-		return send_error(fd, message, "out of memory\n");
-	strcpy(sim, arguments);
-	strcat(sim, "\n");
-	broadcast_message(sim);
-	free(sim);
-
-	return send_success(fd, message);
-simulate_invalid_event:
-	return send_error(fd, message, "invalid event\n");
 }
 
 
@@ -2058,38 +1945,6 @@ void loop(void)
 }
 
 
-static int opt2host_port(const char*		optarg_arg,
-			 struct in_addr*	address,
-			 unsigned short*	port,               // NOLINT
-			 char*			errmsg)
-{
-	char optarg[strlen(optarg_arg) + 1];
-
-	strncpy(optarg, optarg_arg, strlen(optarg_arg));
-	long p;                                                     // NOLINT
-	char* endptr;
-	char* sep = strchr(optarg, ':');
-	const char* port_str = sep ? sep + 1 : optarg;
-
-	p = strtol(port_str, &endptr, 10);
-	if (!*optarg || *endptr || p < 1 || p > USHRT_MAX) {
-		sprintf(errmsg,
-			"%s: bad port number \"%s\"\n", progname, port_str);
-		return -1;
-	}
-	*port = (unsigned short int)p;                              // NOLINT
-	if (sep) {
-		*sep = '\0';
-		if (!inet_aton(optarg, address)) {
-			sprintf(errmsg,
-				"%s: bad address \"%s\"\n", progname, optarg);
-			return -1;
-		}
-	}
-	return 0;
-}
-
-
 static void lircd_add_defaults(void)
 {
 	char level[4];
@@ -2098,17 +1953,13 @@ static void lircd_add_defaults(void)
 
 	const char* const defaults[] = {
 		"lircd:nodaemon",	"False",
-		"lircd:permission",	DEFAULT_PERMISSIONS,
-		"lircd:driver",		"default",
+		"lircd:driver",		"devinput",
 		"lircd:device",		NULL,
-		"lircd:listen",		NULL,
-		"lircd:connect",	NULL,
 		"lircd:output",		LIRCD,
-		"lircd:pidfile",	PIDFILE,
+		"lircd:pidfile",	PIDFILE,   // FIXME
 		"lircd:logfile",	"syslog",
 		"lircd:debug",		level,
 		"lircd:release",	NULL,
-		"lircd:allow-simulate",	"False",
 		"lircd:dynamic-codes",	"False",
 		"lircd:plugindir",	PLUGINDIR,
 		"lircd:repeat-max",	DEFAULT_REPEAT_MAX,
@@ -2119,23 +1970,6 @@ static void lircd_add_defaults(void)
 		(const char*)NULL,	(const char*)NULL
 	};
 	options_add_defaults(defaults);
-}
-
-
-int parse_peer_connections(const char* opt)
-{
-	char buff[256];
-	static const char* const SEP = ", ";
-	char* host;
-
-	if (opt == NULL)
-		return 1;
-	strncpy(buff, opt, sizeof(buff) - 1);
-	for (host = strtok(buff, SEP); host; host = strtok(NULL, SEP)) {
-		if (!add_peer_connection(host))
-			return 0;
-	}
-	return 1;
 }
 
 
@@ -2175,9 +2009,6 @@ static void lircd_parse_options(int argc, char** const argv)
                 case 'i':
 			options_set_opt("lircd:immediate-init", "True");
 			break;
-		case 'p':
-			options_set_opt("lircd:permission", optarg);
-			break;
 		case 'H':
 			options_set_opt("lircd:driver", optarg);
 			break;
@@ -2193,13 +2024,6 @@ static void lircd_parse_options(int argc, char** const argv)
 		case 'o':
 			options_set_opt("lircd:output", optarg);
 			break;
-		case 'l':
-			options_set_opt("lircd:listen", "True");
-			options_set_opt("lircd:listen_hostport", optarg);
-			break;
-		case 'c':
-			options_set_opt("lircd:connect", optarg);
-			break;
 		case 'D':
 			loglevel_opt = (loglevel_t) options_set_loglevel(
 				optarg ? optarg : "debug");
@@ -2207,9 +2031,6 @@ static void lircd_parse_options(int argc, char** const argv)
 				fprintf(stderr, DEBUG_HELP, optarg);
 				exit(EXIT_FAILURE);
 			}
-			break;
-		case 'a':
-			options_set_opt("lircd:allow-simulate", "True");
 			break;
 		case 'r':
 			options_set_opt("lircd:release", "True");
@@ -2245,9 +2066,7 @@ static void lircd_parse_options(int argc, char** const argv)
 int main(int argc, char** argv)
 {
 	struct sigaction act;
-	mode_t permission;
 	const char* device = NULL;
-	char errmsg[128];
 	const char* opt;
 	int immediate_init = 0;
 
@@ -2267,12 +2086,6 @@ int main(int argc, char** argv)
 
 	immediate_init = options_getboolean("lircd:immediate-init");
 	nodaemon = options_getboolean("lircd:nodaemon");
-	opt = options_getstring("lircd:permission");
-	if (oatoi(opt) == -1) {
-		fprintf(stderr, "%s: Invalid mode %s\n", progname, opt);
-		return EXIT_FAILURE;
-	}
-	permission = oatoi(opt);
 	device = options_getstring("lircd:device");
 	opt = options_getstring("lircd:driver");
 	if (strcmp(opt, "help") == 0 || strcmp(opt, "?") == 0) {
@@ -2296,25 +2109,9 @@ int main(int argc, char** argv)
 	opt = options_getstring("lircd:logfile");
 	if (opt != NULL)
 		lirc_log_set_file(opt);
-	if (options_getstring("lircd:listen") != NULL) {
-		listen_tcpip = 1;
-		opt = options_getstring("lircd:listen_hostport");
-		if (opt) {
-			if (opt2host_port(opt, &address, &port, errmsg) != 0) {
-				fputs(errmsg, stderr);
-				return EXIT_FAILURE;
-			}
-		} else {
-			port = LIRC_INET_PORT;
-		}
-	}
-	opt = options_getstring("lircd:connect");
-	if (!parse_peer_connections(opt))
-		return(EXIT_FAILURE);
 	loglevel_opt = (loglevel_t) options_getint("lircd:debug");
 	userelease = options_getboolean("lircd:release");
 	set_release_suffix(options_getstring("lircd:release_suffix"));
-	allow_simulate = options_getboolean("lircd:allow-simulate");
 	repeat_max = options_getint("lircd:repeat-max");
 	configfile = options_getstring("lircd:configfile");
 	curr_driver->open_func(device);
@@ -2330,7 +2127,7 @@ int main(int argc, char** argv)
 
 	signal(SIGPIPE, SIG_IGN);
 
-	start_server(permission, nodaemon, loglevel_opt);
+	start_server(nodaemon, loglevel_opt);
 
 	act.sa_handler = sigterm;
 	sigfillset(&act.sa_mask);
