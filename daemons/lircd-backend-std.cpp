@@ -69,6 +69,7 @@
 #include "lirc_private.h"
 
 #include "pidfile.h"
+#include "lircd_messages.h"
 
 #ifdef HAVE_INT_GETGROUPLIST_GROUPS
 #define lirc_gid int
@@ -718,59 +719,6 @@ void daemonize(void)
 	if (ftruncate(fileno(pidf), ftell(pidf)) != 0)
 		log_perror_warn("lircd: ftruncate()");
 	daemonized = 1;
-}
-
-
-int send_success(int fd, char* message)
-{
-	log_debug("Sending success");
-	if (!
-	    (write_socket_len(fd, protocol_string[P_BEGIN]) && write_socket_len(fd, message)
-	     && write_socket_len(fd, protocol_string[P_SUCCESS]) && write_socket_len(fd, protocol_string[P_END])))
-		return 0;
-	return 1;
-}
-
-
-int send_error(int fd, char* message, const char* format_str, ...)
-{
-	log_debug("Sending error");
-	char lines[4], buffer[PACKET_SIZE + 1];
-	int i, n, len;
-	va_list ap;
-	char* s1;
-	char* s2;
-
-	va_start(ap, format_str);
-	vsprintf(buffer, format_str, ap);
-	va_end(ap);
-
-	s1 = strrchr(message, '\n');
-	s2 = strrchr(buffer, '\n');
-	if (s1 != NULL)
-		s1[0] = 0;
-	if (s2 != NULL)
-		s2[0] = 0;
-	log_error("error processing command: %s", message);
-	log_error("%s", buffer);
-	if (s1 != NULL)
-		s1[0] = '\n';
-	if (s2 != NULL)
-		s2[0] = '\n';
-
-	n = 0;
-	len = strlen(buffer);
-	for (i = 0; i < len; i++)
-		if (buffer[i] == '\n')
-			n++;
-	sprintf(lines, "%d\n", n);
-
-	if (!(write_socket_len(fd, protocol_string[P_BEGIN]) &&
-	      write_socket_len(fd, message) && write_socket_len(fd, protocol_string[P_ERROR])
-	      && write_socket_len(fd, protocol_string[P_DATA]) && write_socket_len(fd, lines)
-	      && write_socket_len(fd, buffer) && write_socket_len(fd, protocol_string[P_END])))
-		return 0;
-	return 1;
 }
 
 
