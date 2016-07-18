@@ -27,7 +27,7 @@
 /** config file names - beneath $HOME or SYSCONFDIR */
 #define CFG_LIRCRC      "lircrc"
 
-/** pid file */
+/** Main lircd  pid file */
 #define PID_LIRCD       "lircd.pid"
 
 /** default port number for UDP driver */

@@ -68,6 +68,8 @@
 
 #include "lirc_private.h"
 
+#include "pidfile.h"
+
 #ifdef HAVE_INT_GETGROUPLIST_GROUPS
 #define lirc_gid int
 #else
@@ -103,6 +105,8 @@ int clock_gettime(int clk_id, struct timespec *t){
 #define DEBUG_HELP "Bad debug level: \"%s\"\n\n" \
 	"Level could be ERROR, WARNING, NOTICE, INFO, DEBUG, TRACE, TRACE1,\n" \
 	" TRACE2 or a number in the range 3..10.\n"
+
+static const char* const DEFAULT_PIDFILE_PATH = "backend-std.pid";
 
 #define WHITE_SPACE " \t"
 
@@ -142,7 +146,6 @@ static const struct option lircd_options[] = {
 	{ "pidfile",	    required_argument, NULL, 'P' },
 	{ "plugindir",	    required_argument, NULL, 'U' },
 	{ "logfile",	    required_argument, NULL, 'L' },
-	{ "debug",	    optional_argument, NULL, 'D' },  // compatibility
 	{ "loglevel",	    optional_argument, NULL, 'D' },
 	{ "release",	    optional_argument, NULL, 'r' },
 	{ "dynamic-codes",  no_argument,       NULL, 'Y' },
@@ -195,7 +198,7 @@ static __u32 repeat_max = REPEAT_MAX_DEFAULT;
 
 static const char* configfile = NULL;
 static FILE* pidf;
-static const char* pidfile = PIDFILE;
+static const char* pidfile_path = PIDFILE;
 static const char* lircdfile = LIRCD;
 static int sockfd;
 
@@ -539,7 +542,7 @@ void dosigterm(int sig)
 	close(sockfd);
 
 	fclose(pidf);
-	(void)unlink(pidfile);
+	(void)unlink(pidfile_path);
 	if (curr_driver->close_func)
 		curr_driver->close_func();
 	if (use_hw() && curr_driver->deinit_func)
@@ -632,40 +635,45 @@ void drop_privileges(void)
 	log_debug("Groups: [%d]:%s", pw->pw_gid, groupnames);
 }
 
+
+/** Creates global pidfile and obtain the lock on it. Exits on errors */
+void create_pidfile()
+{
+	Pidfile::lock_result result;
+	Pidfile* pidfile = Pidfile::instance();
+
+	/* create pid lockfile in /var/run */
+        result = pidfile->lock(pidfile_path);
+        switch (result) {
+	case Pidfile::OK:
+		break;
+	case Pidfile::CANT_CREATE:
+		perrorf("Can't open or create %s", pidfile_path);
+		exit(EXIT_FAILURE);
+	case Pidfile::LOCKED_BY_OTHER:
+		fprintf(stderr,
+			"lircd: There seems to already be a lircd process with pid %d\n",
+			pidfile->other_pid);
+		fprintf(stderr,
+			"lircd: Otherwise delete stale lockfile %s\n",
+			pidfile_path);
+		exit(EXIT_FAILURE);
+	case Pidfile::CANT_PARSE:
+		fprintf(stderr, "lircd: Invalid pidfile %s encountered\n",
+			pidfile_path);
+		exit(EXIT_FAILURE);
+	}
+}
+
+
 void start_server(int nodaemon, loglevel_t loglevel)
 {
 	struct sockaddr_un serv_addr;
 	int r;
-	int fd;
 
 	lirc_log_open("lircd", nodaemon, loglevel);
+	create_pidfile();
 
-	/* create pid lockfile in /var/run */
-	fd = open(pidfile, O_RDWR | O_CREAT, 0644);
-	if (fd > 0)
-		pidf = fdopen(fd, "r+");
-	if (fd == -1 || pidf == NULL) {
-		perrorf("can't open or create %s", pidfile);
-		exit(EXIT_FAILURE);
-	}
-	if (flock(fd, LOCK_EX | LOCK_NB) == -1) {
-		pid_t otherpid;
-
-		if (fscanf(pidf, "%d\n", &otherpid) > 0) {
-			fprintf(stderr, "%s: there seems to already be a lircd process with pid %d\n", progname,
-				otherpid);
-			fprintf(stderr, "%s: otherwise delete stale lockfile %s\n", progname, pidfile);
-		} else {
-			fprintf(stderr, "%s: invalid %s encountered\n", progname, pidfile);
-		}
-		exit(EXIT_FAILURE);
-	}
-	(void)fcntl(fd, F_SETFD, FD_CLOEXEC);
-	rewind(pidf);
-	(void)fprintf(pidf, "%d\n", getpid());
-	(void)fflush(pidf);
-	if (ftruncate(fileno(pidf), ftell(pidf)) != 0)
-		log_perror_warn("lircd: ftruncate()");
 	ir_remote_init(options_getboolean("lircd:dynamic-codes"));
 
 	/* open lircd backend socket */
@@ -692,7 +700,7 @@ void start_server(int nodaemon, loglevel_t loglevel)
 
 start_server_failed:
 	fclose(pidf);
-	(void)unlink(pidfile);
+	(void)unlink(pidfile_path);
 	exit(EXIT_FAILURE);
 }
 
@@ -1671,7 +1679,7 @@ static void lircd_add_defaults(void)
 		"lircd:driver",		"devinput",
 		"lircd:device",		NULL,
 		"lircd:output",		LIRCD,
-		"lircd:pidfile",	PIDFILE,   // FIXME
+		"lircd:pidfile",	DEFAULT_PIDFILE_PATH,
 		"lircd:logfile",	"syslog",
 		"lircd:debug",		level,
 		"lircd:release",	NULL,
@@ -1818,7 +1826,7 @@ int main(int argc, char** argv)
 	opt = options_getstring("lircd:driver-options");
 	if (opt != NULL)
 		drv_handle_options(opt);
-	pidfile = options_getstring("lircd:pidfile");
+	pidfile_path = options_getstring("lircd:pidfile");
 	lircdfile = options_getstring("lircd:output");
 	opt = options_getstring("lircd:logfile");
 	if (opt != NULL)
