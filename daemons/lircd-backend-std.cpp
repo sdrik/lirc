@@ -43,9 +43,6 @@
 #include <sys/time.h>
 #include <sys/socket.h>
 #include <sys/un.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <dirent.h>
@@ -107,21 +104,9 @@ int clock_gettime(int clk_id, struct timespec *t){
 	"Level could be ERROR, WARNING, NOTICE, INFO, DEBUG, TRACE, TRACE1,\n" \
 	" TRACE2 or a number in the range 3..10.\n"
 
-#ifndef PACKET_SIZE
-#define PACKET_SIZE 256
-#endif
 #define WHITE_SPACE " \t"
 
 static const logchannel_t logchannel = LOG_APP;
-
-struct peer_connection {
-	char*		host;
-	unsigned short	port;		// NOLINT
-	struct timeval	reconnect;
-	int		connection_failure;
-	int		socket;
-};
-
 
 static const char* const help =
 	"Usage: lircd [options] <config-file>\n"
@@ -226,10 +211,6 @@ static const struct protocol_directive directives[] = {
 	{ "GET_BACKEND_INFO", get_backend_info },
 	{ "SET_DATA_SOCKET",  set_data_socket  },
 	{ NULL,		      NULL	       }
-	/*
-	 * {"DEBUG",debug},
-	 * {"DEBUG_LEVEL",debug_level},
-	 */
 };
 
 enum protocol_string_num {
@@ -259,21 +240,11 @@ static int events_fd;
 
 static int do_shutdown;
 
-static int clis[MAX_CLIENTS];
-
 static int nodaemon = 0;
 static loglevel_t loglevel_opt = LIRC_NOLOG;
 
 #define CT_LOCAL  1
 #define CT_REMOTE 2
-
-static int cli_type[MAX_CLIENTS];
-static int clin = 0; /* Number of clients */
-
-static struct in_addr address;
-
-static struct peer_connection* peers[MAX_PEERS];
-static int peern = 0;
 
 static int daemonized = 0;
 static int userelease = 0;
@@ -473,8 +444,6 @@ static int setup_filter(void)
 }
 
 
-
-
 static int setup_hardware(void)
 {
 	int ret = 1;
@@ -547,28 +516,6 @@ void config(void)
 }
 
 
-void remove_client(int fd)
-{
-	int i;
-
-	for (i = 0; i < clin; i++) {
-		if (clis[i] == fd) {
-			shutdown(clis[i], 2);
-			close(clis[i]);
-			log_info("removed client");
-
-			clin--;
-			if (!use_hw() && curr_driver->deinit_func)
-				curr_driver->deinit_func();
-			for (; i < clin; i++)
-				clis[i] = clis[i + 1];
-			return;
-		}
-	}
-	log_trace("internal error in remove_client: no such fd");
-}
-
-
 void sigterm(int sig)
 {
 	/* all signals are blocked now */
@@ -580,8 +527,6 @@ void sigterm(int sig)
 
 void dosigterm(int sig)
 {
-	int i;
-
 	signal(SIGALRM, SIG_IGN);
 	log_notice("caught signal");
 
@@ -589,10 +534,6 @@ void dosigterm(int sig)
 		free_config(free_remotes);
 	free_config(remotes);
 	repeat_remote = NULL;
-	for (i = 0; i < clin; i++) {
-		shutdown(clis[i], 2);
-		close(clis[i]);
-	}
 	if (do_shutdown)
 		shutdown(sockfd, 2);
 	close(sockfd);
@@ -612,39 +553,21 @@ void dosigterm(int sig)
 	raise(sig);
 }
 
+
 void sighup(int sig)
 {
 	hup = 1;
 }
 
+
 void dosighup(int sig)
 {
-	int i;
-
 	/* reopen logfile first */
 	if (lirc_log_reopen() != 0) {
 		/* can't print any error messagees */
 		dosigterm(SIGTERM);
 	}
-
 	config();
-
-	for (i = 0; i < clin; i++) {
-		if (!
-		    (write_socket_len(clis[i], protocol_string[P_BEGIN])
-		     && write_socket_len(clis[i], protocol_string[P_SIGHUP])
-		     && write_socket_len(clis[i], protocol_string[P_END]))) {
-			remove_client(clis[i]);
-			i--;
-		}
-	}
-	/* restart all connection timers */
-	for (i = 0; i < peern; i++) {
-		if (peers[i]->socket == -1) {
-			gettimeofday(&peers[i]->reconnect, NULL);
-			peers[i]->connection_failure = 0;
-		}
-	}
 }
 
 
@@ -709,206 +632,6 @@ void drop_privileges(void)
 	log_debug("Groups: [%d]:%s", pw->pw_gid, groupnames);
 }
 
-
-void add_client(int sock)
-{
-	int fd;
-	socklen_t clilen;
-	struct sockaddr client_addr;
-	int flags;
-
-	clilen = sizeof(client_addr);
-	fd = accept(sock, (struct sockaddr*)&client_addr, &clilen);
-	if (fd == -1) {
-		log_perror_err("accept() failed for new client");
-		dosigterm(SIGTERM);
-	}
-	if (clin >= MAX_CLIENTS) {
-		log_error("connection rejected (too many clients)");
-		shutdown(fd, 2);
-		close(fd);
-		return;
-	}
-	nolinger(fd);
-	flags = fcntl(fd, F_GETFL, 0);
-	if (flags != -1)
-		fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-	if (client_addr.sa_family == AF_UNIX) {
-		cli_type[clin] = CT_LOCAL;
-		log_notice("accepted new client on %s", lircdfile);
-	} else if (client_addr.sa_family == AF_INET) {
-		cli_type[clin] = CT_REMOTE;
-		log_notice("accepted new client from %s",
-			  inet_ntoa(((struct sockaddr_in*)&client_addr)->sin_addr));
-	} else {
-		cli_type[clin] = 0;     /* what? */
-	}
-	clis[clin] = fd;
-	if (!use_hw()) {
-		if (curr_driver->init_func) {
-			if (!curr_driver->init_func()) {
-				log_warn("Failed to initialize hardware");
-			/* Don't exit here, otherwise lirc
-			 * bails out, and lircd exits, making
-			 * it impossible to connect to when we
-			 * have a device actually plugged
-			 * in. */
-			} else {
-				setup_hardware();
-			}
-		}
-	}
-	clin++;
-}
-
-int add_peer_connection(const char* server_arg)
-{
-	char* sep;
-	struct servent* service;
-	char server[strlen(server_arg) + 1];
-
-	strncpy(server, server_arg, sizeof(server) - 1);
-
-	if (peern < MAX_PEERS) {
-		peers[peern] = (struct peer_connection*) malloc(sizeof(
-						    struct peer_connection));
-		if (peers[peern] != NULL) {
-			gettimeofday(&peers[peern]->reconnect, NULL);
-			peers[peern]->connection_failure = 0;
-			sep = strchr(server, ':');
-			if (sep != NULL) {
-				*sep = 0;
-				sep++;
-				peers[peern]->host = strdup(server);
-				service = getservbyname(sep, "tcp");
-				if (service) {
-					peers[peern]->port = ntohs(service->s_port);
-				} else {
-					long p;                                 // NOLINT
-					char* endptr;
-
-					p = strtol(sep, &endptr, 10);
-					if (!*sep || *endptr || p < 1 || p > USHRT_MAX) {
-						fprintf(stderr, "%s: bad port number \"%s\"\n", progname, sep);
-						return 0;
-					}
-					peers[peern]->port = (unsigned short int)p;             // NOLINT
-				}
-			} else {
-				peers[peern]->host = strdup(server);
-				peers[peern]->port = LIRC_INET_PORT;
-			}
-			if (peers[peern]->host == NULL)
-				fprintf(stderr, "%s: out of memory\n", progname);
-		} else {
-			fprintf(stderr, "%s: out of memory\n", progname);
-			return 0;
-		}
-		peers[peern]->socket = -1;
-		peern++;
-		return 1;
-	}
-	fprintf(stderr, "%s: too many client connections\n", progname);
-	return 0;
-}
-
-
-void connect_to_peer(peer_connection* peer)
-{
-	int r;
-	char service[64];
-	struct addrinfo* addrinfos;
-	struct addrinfo* a;
-	int enable = 1;
-
-	snprintf(service, sizeof(service), "%d", peer->port);
-	peer->socket = socket(AF_INET, SOCK_STREAM, 0);
-	r = getaddrinfo(peer->host, service, NULL, &addrinfos);
-	if (r != 0) {
-		log_perror_err("Name lookup failure connecting to %s",
-			       peer->host);
-		goto errexit;
-	}
-	(void)setsockopt(peer->socket,
-			 SOL_SOCKET, SO_KEEPALIVE, &enable, sizeof(enable));
-	for (a = addrinfos; a != NULL; a = a->ai_next) {
-		r = connect(peer->socket, a->ai_addr, a->ai_addrlen);
-		if (r >= 0)
-			break;
-	}
-	freeaddrinfo(addrinfos);
-	if (r == -1) {
-		log_perror_err("Cannot connect to %s", peer->host);
-		goto errexit;
-	}
-	log_notice("Connected to %s", peer->host);
-	peer->connection_failure = 0;
-	return;
-
-errexit:
-	peer->connection_failure++;
-	gettimeofday(&peer->reconnect, NULL);
-	peer->reconnect.tv_sec += 5 * peer->connection_failure;
-	close(peer->socket);
-	peer->socket = -1;
-	return;
-}
-
-
-void connect_to_peers(void)
-{
-	int i;
-	struct timeval now;
-
-	gettimeofday(&now, NULL);
-	for (i = 0; i < peern; i++) {
-		if (peers[i]->socket != -1)
-			continue;
-		/* some timercmp() definitions don't work with <= */
-		if (timercmp(&peers[i]->reconnect, &now, <)) {
-			connect_to_peer(peers[i]);
-		}
-	}
-}
-
-
-int get_peer_message(struct peer_connection* peer)
-{
-	int length;
-	char buffer[PACKET_SIZE + 1];
-	char* end;
-	int i;
-
-	length = read_timeout(peer->socket, buffer, PACKET_SIZE, 0);
-	if (length) {
-		buffer[length] = 0;
-		end = strrchr(buffer, '\n');
-		if (end == NULL || end[1] != 0) {
-			log_error("bad send packet: \"%s\"", buffer);
-			/* remove clients that behave badly */
-			return 0;
-		}
-		end++;          /* include the \n */
-		end[0] = 0;
-		length = strlen(buffer);
-		log_trace("received peer message: \"%s\"", buffer);
-		for (i = 0; i < clin; i++) {
-			/* don't relay messages to remote clients */
-			if (cli_type[i] == CT_REMOTE)
-				continue;
-			log_trace("writing to client %d", i);
-			if (write_socket(clis[i], buffer, length) < length) {
-				remove_client(clis[i]);
-				i--;
-			}
-		}
-	}
-
-	if (length == 0)        /* EOF: connection closed by client */
-		return 0;
-	return 1;
-}
-
 void start_server(int nodaemon, loglevel_t loglevel)
 {
 	struct sockaddr_un serv_addr;
@@ -950,7 +673,7 @@ void start_server(int nodaemon, loglevel_t loglevel)
 	sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (sockfd == -1) {
 		perror("Could not create socket");
-		goto start_server_failed0;
+		goto start_server_failed;
 	}
 	do_shutdown = 1;
 	memset(&serv_addr, 0, sizeof(serv_addr));
@@ -959,7 +682,7 @@ void start_server(int nodaemon, loglevel_t loglevel)
 	r = connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
 	if (r != 0) {
 		perror("Cannot connect to lircd");
-		goto start_server_failed0;
+		goto start_server_failed;
 	}
 	nolinger(sockfd);
 
@@ -967,7 +690,7 @@ void start_server(int nodaemon, loglevel_t loglevel)
 	log_trace("started server socket");
 	return;
 
-start_server_failed0:
+start_server_failed:
 	fclose(pidf);
 	(void)unlink(pidfile);
 	exit(EXIT_FAILURE);
@@ -1324,21 +1047,13 @@ string_error:
 
 void broadcast_message(const char* message)
 {
-	int len, i;
+	int len;
 
 	len = strlen(message);
 	if (events_fd >= 0)
 		write_socket(events_fd, message, len);
 	else
 		log_notice("No fifo, dropping decoded event.");
-
-	for (i = 0; i < clin; i++) {
-		log_trace("writing to client %d: %s", i, message);
-		if (write_socket(clis[i], message, len) < len) {
-			remove_client(clis[i]);
-			i--;
-		}
-	}
 }
 
 
@@ -2070,7 +1785,6 @@ int main(int argc, char** argv)
 	const char* opt;
 	int immediate_init = 0;
 
-	address.s_addr = htonl(INADDR_ANY);
 	hw_choose_driver(NULL);
 	options_load(argc, argv, NULL, lircd_parse_options);
 	opt = options_getstring("lircd:debug");
@@ -2115,7 +1829,7 @@ int main(int argc, char** argv)
 	repeat_max = options_getint("lircd:repeat-max");
 	configfile = options_getstring("lircd:configfile");
 	curr_driver->open_func(device);
-	if (strcmp(curr_driver->name, "null") == 0 && peern == 0) {
+	if (strcmp(curr_driver->name, "null") == 0) {
 		fprintf(stderr, "%s: there's no hardware I can use and no peers are specified\n", progname);
 		return EXIT_FAILURE;
 	}
