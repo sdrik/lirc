@@ -70,6 +70,7 @@
 
 #include "pidfile.h"
 #include "lircd_messages.h"
+#include "backend-commands.h"
 
 #ifdef HAVE_INT_GETGROUPLIST_GROUPS
 #define lirc_gid int
@@ -157,26 +158,6 @@ static const struct option lircd_options[] = {
 };
 
 
-/* Forwards referenced in directive definition below. */
-
-static int list(int fd, char* message, char* arguments);
-static int set_transmitters(int fd, char* message, char* arguments);
-static int set_inputlog(int fd, char* message, char* arguments);
-static int send_once(int fd, char* message, char* arguments);
-static int drv_option(int fd, char* message, char* arguments);
-static int send_start(int fd, char* message, char* arguments);
-static int send_stop(int fd, char* message, char* arguments);
-static int send_core(int fd, char* message, char* arguments, int once);
-static int version(int fd, char* message, char* arguments);
-static int get_backend_info(int fd, char* message, char* arguments);
-static int set_data_socket(int fd, char* message, char* arguments);
-
-struct protocol_directive {
-	const char* name;
-	int (*function)(int fd, char* message, char* arguments);
-};
-
-
 #ifndef timersub
 #define timersub(a, b, result)                                            \
 	do {                                                                    \
@@ -190,7 +171,6 @@ struct protocol_directive {
 #endif
 
 
-static struct ir_remote* remotes;
 static struct ir_remote* free_remotes = NULL;
 
 static int repeat_fd = -1;
@@ -198,49 +178,9 @@ static char* repeat_message = NULL;
 static __u32 repeat_max = REPEAT_MAX_DEFAULT;
 
 static const char* configfile = NULL;
-static FILE* pidf;
 static const char* pidfile_path = PIDFILE;
 static const char* lircdfile = LIRCD;
 static int sockfd;
-
-static const struct protocol_directive directives[] = {
-	{ "LIST",	      list	       },
-	{ "SEND_ONCE",	      send_once	       },
-	{ "SEND_START",	      send_start       },
-	{ "SEND_STOP",	      send_stop	       },
-	{ "SET_INPUTLOG",     set_inputlog     },
-	{ "DRV_OPTION",	      drv_option       },
-	{ "VERSION",	      version	       },
-	{ "SET_TRANSMITTERS", set_transmitters },
-	{ "GET_BACKEND_INFO", get_backend_info },
-	{ "SET_DATA_SOCKET",  set_data_socket  },
-	{ NULL,		      NULL	       }
-};
-
-enum protocol_string_num {
-	P_BEGIN = 0,
-	P_DATA,
-	P_END,
-	P_ERROR,
-	P_SUCCESS,
-	P_SIGHUP
-};
-
-static const char* const protocol_string[] = {
-	"BEGIN\n",
-	"DATA\n",
-	"END\n",
-	"ERROR\n",
-	"SUCCESS\n",
-	"SIGHUP\n"
-};
-
-/* Used to be depending on FD_SETSIZE, but using poll() it's now arbitrary. */
-static const int MAX_PEERS  = 256;
-static const int MAX_CLIENTS = 256;
-
-/** The lircd input fifo, opened by set_backend_fifo(). */
-static int events_fd;
 
 static int do_shutdown;
 
@@ -266,77 +206,6 @@ static lirc_t setup_max_pulse = 0, setup_max_space = 0;
 int use_hw(void)
 {
 	return is_open || repeat_remote != NULL;
-}
-
-/* set_transmitters only supports 32 bit int */
-#define MAX_TX (CHAR_BIT * sizeof(__u32))
-
-int max(int a, int b)
-{
-	return a > b ? a : b;
-}
-
-
-/* A safer write(), since sockets might not write all but only some of the
- * bytes requested */
-int write_socket(int fd, const char* buf, int len)
-{
-	int done, todo = len;
-
-	while (todo) {
-		done = write(fd, buf, todo);
-		if (done <= 0)
-			return done;
-		buf += done;
-		todo -= done;
-	}
-	return len;
-}
-
-int write_socket_len(int fd, const char* buf)
-{
-	int len;
-
-	len = strlen(buf);
-	if (write_socket(fd, buf, len) < len)
-		return 0;
-	return 1;
-}
-
-
-int read_timeout(int fd, char* buf, int len, int timeout_us)
-{
-	int ret, n;
-	struct pollfd  pfd = {fd, POLLIN, 0};  // fd, events, revents
-	int timeout = timeout_us > 0 ? timeout_us/1000 : -1;
-
-
-	/* CAVEAT: (from libc documentation)
-	 * Any signal will cause `select' to return immediately.  So if your
-	 * program uses signals, you can't rely on `select' to keep waiting
-	 * for the full time specified.  If you want to be sure of waiting
-	 * for a particular amount of time, you must check for `EINTR' and
-	 * repeat the `select' with a newly calculated timeout based on the
-	 * current time.  See the example below.
-	 *
-	 * The timeout is not recalculated here although it should, we keep
-	 * waiting as long as there are EINTR.
-	 */
-	do
-		ret = poll(&pfd, 1, timeout);
-	while (ret == -1 && errno == EINTR);                 // NOLINT
-	if (ret == -1) {
-		log_perror_err("read_timeout: poll() failed");
-		return -1;
-	}
-	if (ret == 0)
-		return 0;       /* timeout */
-	n = read(fd, buf, len);
-	if (n == -1) {
-		log_perror_err("read_timeout: read() failed");
-		return -1;
-	}
-	return n;
 }
 
 
@@ -508,11 +377,11 @@ void config(void)
 		}
 		/* I cannot free the data structure
 		 * as they could still be in use */
-		free_remotes = remotes;
-		remotes = config_remotes;
+		free_remotes = get_remotes();
+		set_remotes(config_remotes);
 
-		get_frequency_range(remotes, &setup_min_freq, &setup_max_freq);
-		get_filter_parameters(remotes, &setup_max_gap, &setup_min_pulse, &setup_min_space, &setup_max_pulse,
+		get_frequency_range(get_remotes(), &setup_min_freq, &setup_max_freq);
+		get_filter_parameters(get_remotes(), &setup_max_gap, &setup_min_pulse, &setup_min_space, &setup_max_pulse,
 				      &setup_max_space);
 
 		setup_hardware();
@@ -536,16 +405,13 @@ void dosigterm(int sig)
 
 	if (free_remotes != NULL)
 		free_config(free_remotes);
-	free_config(remotes);
+	free_config(get_remotes());
 	repeat_remote = NULL;
 	if (do_shutdown)
 		shutdown(sockfd, 2);
 	close(sockfd);
 
-	fclose(pidf);
-	(void)unlink(pidfile_path);
-	if (curr_driver->close_func)
-		curr_driver->close_func();
+	Pidfile::instance()->close();
 	if (use_hw() && curr_driver->deinit_func)
 		curr_driver->deinit_func();
 	if (curr_driver->close_func)
@@ -682,7 +548,8 @@ void start_server(int nodaemon, loglevel_t loglevel)
 	sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (sockfd == -1) {
 		perror("Could not create socket");
-		goto start_server_failed;
+		Pidfile::instance()->close();
+		exit(EXIT_FAILURE);
 	}
 	do_shutdown = 1;
 	memset(&serv_addr, 0, sizeof(serv_addr));
@@ -691,18 +558,14 @@ void start_server(int nodaemon, loglevel_t loglevel)
 	r = connect(sockfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
 	if (r != 0) {
 		perror("Cannot connect to lircd");
-		goto start_server_failed;
+		Pidfile::instance()->close();
+		exit(EXIT_FAILURE);
 	}
 	nolinger(sockfd);
 
 	drop_privileges();
-	log_trace("started server socket");
+	log_debug("Connected to server socket");
 	return;
-
-start_server_failed:
-	fclose(pidf);
-	(void)unlink(pidfile_path);
-	exit(EXIT_FAILURE);
 }
 
 
@@ -712,12 +575,7 @@ void daemonize(void)
 		log_perror_err("daemon() failed");
 		dosigterm(SIGTERM);
 	}
-	umask(0);
-	rewind(pidf);
-	fprintf(pidf, "%d\n", getpid());
-	fflush(pidf);
-	if (ftruncate(fileno(pidf), ftell(pidf)) != 0)
-		log_perror_warn("lircd: ftruncate()");
+	Pidfile::instance()->update(getpid());
 	daemonized = 1;
 }
 
@@ -792,544 +650,15 @@ void dosigalrm(int sig)
 }
 
 
-int parse_rc(int fd,
-	     char* message, char* arguments,
-	     struct ir_remote** remote, struct ir_ncode** code,
-	     unsigned int* reps, int n, int* err)
-{
-	char* name = NULL;
-	char* command = NULL;
-	char* repeats;
-	char* end_ptr = NULL;
-
-	*remote = NULL;
-	*code = NULL;
-	*err = 1;
-	if (arguments == NULL)
-		goto arg_check;
-
-	name = strtok(arguments, WHITE_SPACE);
-	if (name == NULL)
-		goto arg_check;
-	*remote = get_ir_remote(remotes, name);
-	if (*remote == NULL)
-		return send_error(fd, message, "unknown remote: \"%s\"\n", name);
-	command = strtok(NULL, WHITE_SPACE);
-	if (command == NULL)
-		goto arg_check;
-	*code = get_code_by_name(*remote, command);
-	if (*code == NULL)
-		return send_error(fd, message, "unknown command: \"%s\"\n", command);
-	if (reps != NULL) {
-		repeats = strtok(NULL, WHITE_SPACE);
-		if (repeats != NULL) {
-			*reps = strtol(repeats, &end_ptr, 10);
-			if (*end_ptr || *reps < 0)
-				return send_error(fd, message, "bad send packet (reps/eol)\n");
-			if (*reps > repeat_max)
-				return send_error
-					       (fd, message, "too many repeats: \"%d\" > \"%u\"\n", *reps, repeat_max);
-		} else {
-			*reps = -1;
-		}
-	}
-	if (strtok(NULL, WHITE_SPACE) != NULL)
-		return send_error(fd, message, "bad send packet (trailing ws)\n");
-arg_check:
-	if (n > 0 && *remote == NULL)
-		return send_error(fd, message, "remote missing\n");
-	if (n > 1 && *code == NULL)
-		return send_error(fd, message, "code missing\n");
-	*err = 0;
-	return 1;
-}
-
-
-int send_remote_list(int fd, char* message)
-{
-	char buffer[PACKET_SIZE + 1];
-	struct ir_remote* all;
-	int n, len;
-
-	n = 0;
-	all = remotes;
-	while (all) {
-		n++;
-		all = all->next;
-	}
-
-	if (!
-	    (write_socket_len(fd, protocol_string[P_BEGIN]) && write_socket_len(fd, message)
-	     && write_socket_len(fd, protocol_string[P_SUCCESS])))
-		return 0;
-
-	if (n == 0)
-		return write_socket_len(fd, protocol_string[P_END]);
-	sprintf(buffer, "%d\n", n);
-	if (!(write_socket_len(fd, protocol_string[P_DATA]) && write_socket_len(fd, buffer)))
-		return 0;
-
-	all = remotes;
-	while (all) {
-		len = snprintf(buffer, PACKET_SIZE + 1, "%s\n", all->name);
-		if (len >= PACKET_SIZE + 1)
-			len = sprintf(buffer, "name_too_long\n");
-		if (write_socket(fd, buffer, len) < len)
-			return 0;
-		all = all->next;
-	}
-	return write_socket_len(fd, protocol_string[P_END]);
-}
-
-int send_remote(int fd, char* message, struct ir_remote* remote)
-{
-	struct ir_ncode* codes;
-	char buffer[PACKET_SIZE + 1];
-	int n, len;
-
-	n = 0;
-	codes = remote->codes;
-	if (codes != NULL) {
-		while (codes->name != NULL) {
-			n++;
-			codes++;
-		}
-	}
-
-	if (!
-	    (write_socket_len(fd, protocol_string[P_BEGIN]) && write_socket_len(fd, message)
-	     && write_socket_len(fd, protocol_string[P_SUCCESS])))
-		return 0;
-	if (n == 0)
-		return write_socket_len(fd, protocol_string[P_END]);
-	sprintf(buffer, "%d\n", n);
-	if (!(write_socket_len(fd, protocol_string[P_DATA]) && write_socket_len(fd, buffer)))
-		return 0;
-
-	codes = remote->codes;
-	while (codes->name != NULL) {
-		// NOLINTNEXTLINE
-		len = snprintf(buffer, PACKET_SIZE, "%016llx %s\n",
-			      (unsigned long long)codes->code, codes->name);    //NOLINT
-		if (len >= PACKET_SIZE + 1)
-			len = sprintf(buffer, "code_too_long\n");
-		if (write_socket(fd, buffer, len) < len)
-			return 0;
-		codes++;
-	}
-	return write_socket_len(fd, protocol_string[P_END]);
-}
-
-int send_name(int fd, char* message, struct ir_ncode* code)
-{
-	char buffer[PACKET_SIZE + 1];
-	int len;
-
-	if (!
-	    (write_socket_len(fd, protocol_string[P_BEGIN]) && write_socket_len(fd, message)
-	     && write_socket_len(fd, protocol_string[P_SUCCESS]) && write_socket_len(fd, protocol_string[P_DATA])))
-		return 0;
-	// NOLINTNEXTLINE
-	len = snprintf(buffer, PACKET_SIZE, "1\n%016llx %s\n", (unsigned long long)code->code, code->name);
-	if (len >= PACKET_SIZE + 1)
-		len = sprintf(buffer, "1\ncode_too_long\n");
-	if (write_socket(fd, buffer, len) < len)
-		return 0;
-	return write_socket_len(fd, protocol_string[P_END]);
-}
-
-static int list(int fd, char* message, char* arguments)
-{
-	struct ir_remote* remote;
-	struct ir_ncode* code;
-	int err;
-
-	if (parse_rc(fd, message, arguments, &remote, &code, 0, 0, &err) == 0)
-		return 0;
-	if (err)
-		return 1;
-
-	if (remote == NULL)
-		return send_remote_list(fd, message);
-	if (code == NULL)
-		return send_remote(fd, message, remote);
-	return send_name(fd, message, code);
-}
-
-
-static int set_transmitters(int fd, char* message, char* arguments)
-{
-	char* next_arg = NULL;
-	char* end_ptr;
-	__u32 next_tx_int = 0;
-	__u32 next_tx_hex = 0;
-	__u32 channels = 0;
-	int retval = 0;
-	unsigned int i;
-
-	if (arguments == NULL)
-		goto string_error;
-	if (curr_driver->send_mode == 0)
-		return send_error(fd, message, "hardware does not support sending\n");
-	if (curr_driver->drvctl_func == NULL || !(curr_driver->features & LIRC_CAN_SET_TRANSMITTER_MASK))
-		return send_error(fd, message, "hardware does not support multiple transmitters\n");
-
-	next_arg = strtok(arguments, WHITE_SPACE);
-	if (next_arg == NULL)
-		goto string_error;
-	do {
-		next_tx_int = strtoul(next_arg, &end_ptr, 10);
-		if (*end_ptr || next_tx_int == 0 || (next_tx_int == ULONG_MAX && errno == ERANGE))
-			return send_error(fd, message, "invalid argument\n");
-		if (next_tx_int > MAX_TX)
-			return send_error(fd, message, "cannot support more than %d transmitters\n", MAX_TX);
-		next_tx_hex = 1;
-		for (i = 1; i < next_tx_int; i++)
-			next_tx_hex = next_tx_hex << 1;
-		channels |= next_tx_hex;
-	} while ((next_arg = strtok(NULL, WHITE_SPACE)) != NULL);
-
-	retval = curr_driver->drvctl_func(LIRC_SET_TRANSMITTER_MASK, &channels);
-	if (retval < 0)
-		return send_error(fd, message, "error - could not set transmitters\n");
-	if (retval > 0)
-		return send_error(fd, message, "error - maximum of %d transmitters\n", retval);
-	return send_success(fd, message);
-
-string_error:
-	return send_error(fd, message, "no arguments given\n");
-}
-
-
 void broadcast_message(const char* message)
 {
 	int len;
 
 	len = strlen(message);
-	if (events_fd >= 0)
-		write_socket(events_fd, message, len);
+	if (get_events_fd() >= 0)
+		write_socket(get_events_fd(), message, len);
 	else
 		log_notice("No fifo, dropping decoded event.");
-}
-
-
-static int get_backend_info(int fd, char* message, char* arguments)
-{
-	int r;
-	char buff[128];
-
-	snprintf(buff, sizeof(buff), "std %d %s %s\n",
-		 getpid(), curr_driver->name, curr_driver->device);
-	r = write_socket_len(fd, protocol_string[P_BEGIN]) &&
-		write_socket_len(fd, message) &&
-		write_socket_len(fd, protocol_string[P_SUCCESS]) &&
-		write_socket_len(fd, protocol_string[P_DATA]) &&
-		write_socket_len(fd, "1\n") &&
-		write_socket_len(fd, buff) &&
-		write_socket_len(fd, protocol_string[P_END]);
-	return r ? 1 : 0;
-}
-
-
-/** Trim leading and trailing space in s, return new string. */
-static char* trim(char* s)
-{
-	char* end;
-
-	while (isspace(*s) && *s != '\0')
-		s += 1;
-	end = s + strlen(s) - 1;
-	while (end > s && isspace(*end))
-		end -= 1;
-	if (isspace(*end))
-		*end = '\0';
-	return s;
-}
-
-
-/** Set the socket used to send decoded events to lircd. */
-static int set_data_socket(int fd, char* message, char* arguments)
-{
-	char* args = trim(arguments);
-	char buff[128];
-
-	if (events_fd >= 0) {
-		log_notice("Re-opening new events fifo.");
-		close(events_fd);
-		events_fd = -1;
-	}
-	events_fd = open(args, O_WRONLY);
-	if (events_fd < 0){
-		send_error(fd, message,
-			   "Cannot open event fifo %s", args);
-		return 0;
-	}
-	strncpy(buff, message, sizeof(buff) - 1);
-	char* ws = strchr(buff, ' ');
-	if (ws != NULL) {
-		*ws = '\n';
-		ws += 1;
-		if (ws < (buff + sizeof(buff) - 1))
-			*ws = '\0';
-	}
-	send_success(fd, buff);
-	return 1;
-}
-
-
-static int send_once(int fd, char* message, char* arguments)
-{
-	return send_core(fd, message, arguments, 1);
-}
-
-
-static int send_start(int fd, char* message, char* arguments)
-{
-	return send_core(fd, message, arguments, 0);
-}
-
-
-static int send_core(int fd, char* message, char* arguments, int once)
-{
-	struct ir_remote* remote;
-	struct ir_ncode* code;
-	unsigned int reps;
-	int err;
-
-	log_debug("Sending once, msg: %s, args: %s, once: %d",
-		  message, arguments, once);
-	if (curr_driver->send_mode == 0)
-		return send_error(fd, message, "hardware does not support sending\n");
-
-	if (parse_rc(fd, message, arguments, &remote, &code, once ? &reps : NULL, 2, &err) == 0)
-		return 0;
-	if (err)
-		return 1;
-
-	if (once) {
-		if (repeat_remote != NULL)
-			return send_error(fd, message, "busy: repeating\n");
-	} else {
-		if (repeat_remote != NULL)
-			return send_error(fd, message, "already repeating\n");
-	}
-	if (has_toggle_mask(remote))
-		remote->toggle_mask_state = 0;
-	if (has_toggle_bit_mask(remote))
-		remote->toggle_bit_mask_state = (remote->toggle_bit_mask_state ^ remote->toggle_bit_mask);
-	code->transmit_state = NULL;
-	struct timespec before_send;
-	clock_gettime(CLOCK_MONOTONIC, &before_send);
-	if (!send_ir_ncode(remote, code, 1))
-		return send_error(fd, message, "transmission failed\n");
-	gettimeofday(&remote->last_send, NULL);
-	remote->last_code = code;
-	if (once)
-		remote->repeat_countdown = max(remote->repeat_countdown, reps);
-	else
-		/* you've been warned, now we have a limit */
-		remote->repeat_countdown = repeat_max;
-	if (remote->repeat_countdown > 0 || code->next != NULL) {
-		repeat_remote = remote;
-		repeat_code = code;
-		if (once) {
-			repeat_message = strdup(message);
-			if (repeat_message == NULL) {
-				repeat_remote = NULL;
-				repeat_code = NULL;
-				return send_error(fd, message, "out of memory\n");
-			}
-			repeat_fd = fd;
-		} else if (!send_success(fd, message)) {
-			repeat_remote = NULL;
-			repeat_code = NULL;
-			return 0;
-		}
-		schedule_repeat_timer(&before_send);
-		return 1;
-	} else {
-		return send_success(fd, message);
-	}
-}
-
-static int send_stop(int fd, char* message, char* arguments)
-{
-	struct ir_remote* remote;
-	struct ir_ncode* code;
-	struct itimerval repeat_timer;
-	int err;
-
-	if (parse_rc(fd, message, arguments, &remote, &code, 0, 0, &err) == 0)
-		return 0;
-	if (err)
-		return 1;
-
-	if (repeat_remote && repeat_code) {
-		int done;
-
-		if (remote && strcasecmp(remote->name, repeat_remote->name) != 0)
-			return send_error(fd, message, "specified remote does not match\n");
-		if (code && strcasecmp(code->name, repeat_code->name) != 0)
-			return send_error(fd, message, "specified code does not match\n");
-
-		done = repeat_max - repeat_remote->repeat_countdown;
-		if (done < repeat_remote->min_repeat) {
-			/* we still have some repeats to do */
-			repeat_remote->repeat_countdown = repeat_remote->min_repeat - done;
-			return send_success(fd, message);
-		}
-		repeat_timer.it_value.tv_sec = 0;
-		repeat_timer.it_value.tv_usec = 0;
-		repeat_timer.it_interval.tv_sec = 0;
-		repeat_timer.it_interval.tv_usec = 0;
-
-		setitimer(ITIMER_REAL, &repeat_timer, NULL);
-
-		repeat_remote->toggle_mask_state = 0;
-		repeat_remote = NULL;
-		repeat_code = NULL;
-		/* clin!=0, so we don't have to deinit hardware */
-		alrm = 0;
-		return send_success(fd, message);
-	} else {
-		return send_error(fd, message, "not repeating\n");
-	}
-}
-
-
-static int version(int fd, char* message, char* arguments)
-{
-	char buffer[PACKET_SIZE + 1];
-
-	sprintf(buffer, "1\n%s\n", VERSION);
-	if (!(write_socket_len(fd, protocol_string[P_BEGIN]) &&
-	      write_socket_len(fd, message) && write_socket_len(fd, protocol_string[P_SUCCESS])
-	      && write_socket_len(fd, protocol_string[P_DATA]) && write_socket_len(fd, buffer)
-	      && write_socket_len(fd, protocol_string[P_END])))
-		return 0;
-	return 1;
-}
-
-
-static int drv_option(int fd, char* message, char* arguments)
-{
-	struct option_t option;
-	int r;
-
-	r = sscanf(arguments, "%32s %64s", option.key, option.value);
-	if (r != 2) {
-		return send_error(fd, message,
-				  "Illegal argument (protocol error): %s",
-				  arguments);
-	}
-	r = curr_driver->drvctl_func(DRVCTL_SET_OPTION,
-				     reinterpret_cast<void*>(&option));
-	if (r != 0) {
-		log_warn("Cannot set driver option");
-		return send_error(fd, message,
-				  "Cannot set driver option %d", errno);
-	}
-	return send_success(fd, message);
-}
-
-
-static int set_inputlog(int fd, char* message, char* arguments)
-{
-	char buff[128];
-	FILE* f;
-	int r;
-
-	r = sscanf(arguments, "%128s", buff);
-	if (r != 1) {
-		return send_error(fd, message,
-				  "Illegal argument (protocol error): %s",
-				  arguments);
-	}
-	if (strcasecmp(buff, "null") == 0) {
-		rec_buffer_set_logfile(NULL);
-		return send_success(fd, message);
-	}
-	f = fopen(buff, "w");
-	if (f == NULL) {
-		log_warn("Cannot open input logfile: %s", buff);
-		return send_error(fd, message,
-				  "Cannot open input logfile: %s (errno: %d)",
-				  buff, errno);
-	}
-	rec_buffer_set_logfile(f);
-	return send_success(fd, message);
-}
-
-
-int get_command(int fd)
-{
-	int length;
-	char buffer[PACKET_SIZE + 1], backup[PACKET_SIZE + 1];
-	char* end;
-	int packet_length, i;
-	char* directive;
-
-	length = read_timeout(fd, buffer, PACKET_SIZE, 0);
-	packet_length = 0;
-	while (length > packet_length) {
-		buffer[length] = 0;
-		end = strchr(buffer, '\n');
-		if (end == NULL) {
-			log_error("bad send packet: \"%s\"", buffer);
-			/* remove clients that behave badly */
-			return 0;
-		}
-		end[0] = 0;
-		log_trace("received command: \"%s\"", buffer);
-		packet_length = strlen(buffer) + 1;
-
-		strcpy(backup, buffer);
-		strcat(backup, "\n");
-
-		/* remove DOS line endings */
-		end = strrchr(buffer, '\r');
-		if (end && end[1] == 0)
-			*end = 0;
-
-		directive = strtok(buffer, WHITE_SPACE);
-		if (directive == NULL) {
-			if (!send_error(fd, backup, "bad send packet\n"))
-				return 0;
-			goto skip;
-		}
-		for (i = 0; directives[i].name != NULL; i++) {
-			if (strcasecmp(directive, directives[i].name) == 0) {
-				if (!directives[i].function(fd, backup, strtok(NULL, "")))
-					return 0;
-				goto skip;
-			}
-		}
-
-		if (!send_error(fd, backup, "unknown directive: \"%s\"\n", directive))
-			return 0;
-skip:
-		if (length > packet_length) {
-			int new_length;
-
-			memmove(buffer, buffer + packet_length, length - packet_length + 1);
-			if (strchr(buffer, '\n') == NULL) {
-				new_length =
-					read_timeout(fd, buffer + length - packet_length,
-						     PACKET_SIZE - (length - packet_length), 5);
-				if (new_length > 0)
-					length = length - packet_length + new_length;
-				else
-					length = new_length;
-			} else {
-				length -= packet_length;
-			}
-			packet_length = 0;
-		}
-	}
-
-	if (length == 0)        /* EOF: connection closed by client */
-		return 0;
-	return 1;
 }
 
 
@@ -1360,13 +689,13 @@ void free_old_remotes(void)
 	if (get_decoding() == free_remotes)
 		return;
 
-	release_event = release_map_remotes(free_remotes, remotes, &release_remote_name, &release_button_name);
+	release_event = release_map_remotes(free_remotes, get_remotes(), &release_remote_name, &release_button_name);
 	if (release_event != NULL)
 		input_message(release_event, release_remote_name, release_button_name, 0, 1);
 	if (last_remote != NULL) {
 		if (is_in_remotes(free_remotes, last_remote)) {
 			log_info("last_remote found");
-			found = get_ir_remote(remotes, last_remote->name);
+			found = get_ir_remote(get_remotes(), last_remote->name);
 			if (found != NULL) {
 				code = get_code_by_name(found, last_remote->last_code->name);
 				if (code != NULL) {
@@ -1396,7 +725,7 @@ void free_old_remotes(void)
 			scan_remotes = scan_remotes->next;
 		}
 		if (found != NULL) {
-			found = get_ir_remote(remotes, repeat_remote->name);
+			found = get_ir_remote(get_remotes(), repeat_remote->name);
 			if (found != NULL) {
 				code = get_code_by_name(found, repeat_code->name);
 				if (code != NULL) {
@@ -1457,7 +786,6 @@ static int mywaitfordata(unsigned long maxusec)                    // NOLINT
 	struct timeval timeout = {0};
 	struct timeval release_time = {0};
 	loglevel_t oldlevel;
-
 	while (1) {
 		do {
 			/* handle signals */
@@ -1520,8 +848,9 @@ static int mywaitfordata(unsigned long maxusec)                    // NOLINT
 					timersub(&release_time, &now, &gap);
 					if (!(timerisset(&tv)
 					      || reconnect)
-					    || timercmp(&tv, &gap, >))
+					      || timercmp(&tv, &gap, >)) {
 						tv = gap;
+					}
 				}
 			}
 			if (timerisset(&tv) || timerisset(&release_time) || reconnect)
@@ -1592,13 +921,18 @@ void loop(void)
 		if (!curr_driver->init_func()) {
 			log_warn("Failed to initialize hardware");
 		}
+		if (curr_driver->deinit_func) {
+			int status = curr_driver->deinit_func();
+			if (!status)
+				log_error("Failed to de-initialize hardware");
+		}
 	}
 
 	while (1) {
 		(void)mywaitfordata(0);
 		if (!curr_driver->rec_func)
 			continue;
-		message = curr_driver->rec_func(remotes);
+		message = curr_driver->rec_func(get_remotes());
 
 		if (message != NULL) {
 			const char* remote_name;
@@ -1815,7 +1149,6 @@ int main(int argc, char** argv)
 	act.sa_flags = SA_RESTART;
 	sigaction(SIGUSR1, &act, NULL);
 
-	remotes = NULL;
 	config();               /* read config file */
 
 	act.sa_handler = sighup;

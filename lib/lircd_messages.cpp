@@ -142,11 +142,16 @@ int read_timeout(int fd, char* buf, int len, int timeout_us)
 
 int send_success(int fd, const char* message)
 {
+	char buff[128];
 	log_debug("Sending success");
+
+	strncpy(buff, message, sizeof(buff) - 1);
+	strip_trailing_nl(buff);
+
 	std::string s("");
 
 	s += protocol_string[P_BEGIN]
-		+ std::string(message)
+		+ std::string(message) + "\n"
 		+ protocol_string[P_SUCCESS]
 		+ protocol_string[P_END];
 	log_debug("Sending success: \"%s\"", s.c_str());
@@ -159,21 +164,19 @@ int send_success(int fd, const char* message, const char* data)
 	// FIXME: Handle newline in message
 	char buff[128];
         char line_count[32];
-	char* nl;
 	std::string s("");
 
 	strncpy(buff, message, sizeof(buff) - 1);
-	nl = strrchr(buff, '\n');
-	if (nl != NULL && *(nl + 1) == '\0')
-		*nl = '\0';
+	strip_trailing_nl(buff);
 	snprintf(line_count, sizeof(line_count),
 		 "%d\n", count_newlines(data));
-	s += protocol_string[P_BEGIN] + std::string(buff) + "\n";
-	s += protocol_string[P_SUCCESS];
-	s += protocol_string[P_DATA];
-	s += line_count;
-	s += data;
-	s += protocol_string[P_END];
+	s += protocol_string[P_BEGIN]
+		+ std::string(buff) + "\n"
+		+ protocol_string[P_SUCCESS]
+		+ protocol_string[P_DATA]
+		+ line_count
+		+ data
+		+ protocol_string[P_END];
 	log_trace("Sending output: %s", s.c_str());
 	return write_socket(fd, s.c_str(), s.size());
 }

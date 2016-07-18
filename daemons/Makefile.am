@@ -32,7 +32,7 @@ lircd_uinput_LDADD        = ../lib/liblirc.la
 lircd_backend_tcp_SOURCES = lircd-backend-tcp.cpp
 lircd_backend_tcp_LDADD   = ../lib/liblirc.la
 
-lircd_backend_std_SOURCES = lircd-backend-std.cpp
+lircd_backend_std_SOURCES = lircd-backend-std.cpp backend-commands.cpp
 lircd_backend_std_LDADD   = ../lib/liblirc.la
 
 lircmd_SOURCES            = lircmd.cpp
