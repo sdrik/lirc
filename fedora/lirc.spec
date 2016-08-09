@@ -4,8 +4,8 @@
 #define tag     devel
 
 Name:           lirc
-Version:        0.9.4a
-Release:        %{?tag:0.}1%{?tag:.}%{?tag}%{?dist}
+Version:        0.9.4b
+Release:        %{?tag:0.}1%{?tag:.}%{?tag}%{?dist}.1
 Summary:        The Linux Infrared Remote Control package
 
 %global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}/
@@ -182,7 +182,6 @@ full support for the ftdi device.
 %setup -qn %{name}-%{version}%{?tag}
 sed -i -e 's|/usr/local/etc/|/etc/|' contrib/irman2lirc
 sed -i -e 's/#effective-user/effective-user /' lirc_options.conf
-sed -i -e '\|/usr/bin/env|s|python|python3|' tools/make_rel_symlink.py
 
 
 %build
@@ -190,6 +189,7 @@ autoreconf -fi
 
 CFLAGS="%{optflags}" %configure --libdir=%{_libdir}
 make %{?_smp_mflags}
+
 
 %install
 make install DESTDIR=$RPM_BUILD_ROOT
@@ -334,6 +334,9 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_udevrulesdir}/99-remote-control-lirc.rules
 
 %changelog
+* Tue Aug 09 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4b-1
+- Rebuilt for new upstream version 0.9.4b.
+
 * Tue Jun 28 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4a-1
 - New upstream release
 - Patches upstreamed
