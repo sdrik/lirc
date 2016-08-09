@@ -1,3 +1,7 @@
+lirc (0.9.4b-1.1) @distribution@; urgency=medium
+  * New upstream release
+ -- Alec Leamas  <leamas.alec@gmail.com>  Tue, 9 Aug 2016 12:00:25 +0100
+
 lirc (0.9.4a-1.2) @distribution@; urgency=medium
   * New upstream release
   * Patches from 0.9.4-2.1 upstreamed.

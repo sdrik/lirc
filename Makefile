@@ -36,12 +36,13 @@ jessie: CHANGELOG           = debian.changelog.in
 trusty: STANDARDS_VERSION   = 3.9.6
 trusty: MAINTAINER          = $(UBUNTU_DEVS)
 trusty: DISTRIBUTION        = trusty
-trusty: CHANGELOG           = debian.changelog.in
+trusty: CHANGELOG           = ubuntu.changelog.in
+trusty: NO_SYSTEMD          = 1
 
 xenial: STANDARDS_VERSION   = 3.9.7
-trusty: MAINTAINER          = $(UBUNTU_DEVS)
-trusty: DISTRIBUTION        = xenial
-trusty: CHANGELOG           = debian.changelog.in
+xenial: MAINTAINER          = $(UBUNTU_DEVS)
+xenial: DISTRIBUTION        = xenial
+xenial: CHANGELOG           = ubuntu.changelog.in
 
 
 all:	sid
@@ -55,6 +56,7 @@ debian/NEWS: NEWS.in
 debian/control: control.in
 	sed -e 's/@standards_version@/$(STANDARDS_VERSION)/' \
 	    -e 's/@maintainer@/$(DEBIAN_DEVS)/'  < $? > $@
+	test -z "$(NO_SYSTEMD)" || sed  -i '/ systemd,$$/d' $@
 
 debian/changelog: $(CHANGELOG)
 	sed -e 's/@distribution@/$(DISTRIBUTION)/' < $(CHANGELOG)  > $@
