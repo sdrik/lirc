@@ -24,6 +24,7 @@ lircd_SOURCES             = lircd.cpp lircd_\
                             fd_list.h fd_list.cpp \
                             lircd_commands.cpp \
                             lircd_options.h lircd_options.cpp
+
 lircd_LDADD               = ../lib/liblirc.la
 
 lircd_uinput_SOURCES      = lircd-uinput.cpp

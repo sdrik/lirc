@@ -68,9 +68,9 @@ class FdItem {
 		FdItem();
 };
 
-typedef std::vector<FdItem> ItemVector;
+typedef std::vector<FdItem> FdItemVector;
 
-typedef ItemVector::iterator ItemIterator;
+typedef FdItemVector::iterator FdItemIterator;
 
 typedef bool (*fd_int_predicate)(const FdItem&, int);
 typedef bool (*fd_str_predicate)(const FdItem&, const char*);
@@ -96,24 +96,24 @@ class FdList {
 		 * Remove fd and possible related peer. Returns
 		 * FdList.end() if not found.
 		 */
-		ItemIterator remove_backend(int fd);
+		FdItemIterator remove_backend(int fd);
 
 		void add_client(int client_fd);
 		void add_ctrl_client(int client_fd);
-		ItemIterator remove_client(int fd);
+		FdItemIterator remove_client(int fd);
 
 		int size() { return fd_list.size(); }
-		ItemIterator begin() { return fd_list.begin(); }
-		ItemIterator end() { return fd_list.end(); }
+		FdItemIterator begin() { return fd_list.begin(); }
+		FdItemIterator end() { return fd_list.end(); }
 		FdItem& item_at(int i) { return fd_list[i]; }
 
 		int client_socket() { return fd_list[0].fd; }
 		int backend_socket() { return fd_list[1].fd; }
 		int ctrl_socket() { return fd_list[2].fd; }
 
-		ItemIterator find_fd(int fd);
-		ItemIterator find(int what, fd_int_predicate);
-		ItemIterator find(const char* what, fd_str_predicate);
+		FdItemIterator find_fd(int fd);
+		FdItemIterator find(int what, fd_int_predicate);
+		FdItemIterator find(const char* what, fd_str_predicate);
 		std::vector<int> select_fds(int what, fd_int_predicate);
 
 		/** Return snapshot of current items + corresponding pollfd */

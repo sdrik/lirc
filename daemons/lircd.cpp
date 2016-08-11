@@ -112,7 +112,7 @@ static FdList*  fdList(0);
 /** SIGTERM/SIGUSR1 helper, called from main loop. Cleans up and exits. */
 void dosigterm(int sig)
 {
-	ItemIterator it;
+	FdItemIterator it;
 
 	signal(SIGALRM, SIG_IGN);
 	log_notice("caught signal");
@@ -148,7 +148,7 @@ void sigusr1(int sig)
 /** SIGHUP handler: Re-read config file. */
 static void dosighup()
 {
-	ItemIterator it;
+	FdItemIterator it;
 
 	/* reopen logfile first */
 	if (lirc_log_reopen() != 0) {
@@ -177,7 +177,7 @@ void sighup(int sig) { signal_handler = dosighup; }
 /** Decrement the tick counter on each fd, handle timeouts. */
 void dosigalrm()
 {
-	ItemIterator it;
+	FdItemIterator it;
 
 	for (it = fdList->begin(); it != fdList->end(); it += 1) {
 		if (it->kind != FdItem::CLIENT_STREAM &&
@@ -217,8 +217,8 @@ static void nolinger(int sock)
 /**  Create cmd - data backend peer relation, quits silently on errors. */
 static void connect_peers(int client_fd, int backend_fd)
 {
-	ItemIterator client;
-	ItemIterator backend;
+	FdItemIterator client;
+	FdItemIterator backend;
 
 	backend = fdList->find_fd(backend_fd);
 	if (backend == fdList-> end())
@@ -255,7 +255,7 @@ static bool find_backend_by_type(const FdItem& item, int what)
 /** Find a random, new default client if available. */
 static void find_new_default_backend()
 {
-	ItemIterator item = fdList->find(0, find_backend_by_type);
+	FdItemIterator item = fdList->find(0, find_backend_by_type);
 	if (item == fdList->end())
 		commands_set_backend(-1);
 	else
@@ -351,7 +351,7 @@ void add_backend(int sock)
 	log_debug("Waiting for event input on %s", path.c_str());
 	fdList->add_backend(cmd_fd, data_fd);
 	connect_peers(cmd_fd, data_fd);
-	ItemIterator it = fdList->find_fd(cmd_fd);
+	FdItemIterator it = fdList->find_fd(cmd_fd);
 	it->connected_to = 0;
 	write_socket(cmd_fd, GET_INFO_CMD.c_str(), GET_INFO_CMD.size());
 }
@@ -422,7 +422,7 @@ void handle_get_backend_info_reply(int fd)
 	char backend_type[32];
 	string path;
 
-	ItemIterator it = fdList->find_fd(fd);
+	FdItemIterator it = fdList->find_fd(fd);
 	string reply = it->replyParser->get_data();
 	int r = sscanf(reply.c_str(),
 		       "%32s %6d %32s %64s",
@@ -444,7 +444,7 @@ void handle_get_backend_info_reply(int fd)
 /** Handle reply from backend after issuing SET_DATA_SOCKET command. */
 void handle_data_socket_reply(int fd)
 {
-	ItemIterator it = fdList->find_fd(fd);
+	FdItemIterator it = fdList->find_fd(fd);
 	if (it == fdList->end()) {
 		log_warn("handle_data_socket: Cannot lookup fd.");
 		return;
@@ -469,7 +469,7 @@ bool handle_local_reply(const char* message, int fd)
 {
 	std::string reply;
 
-	ItemIterator backend = fdList->find_fd(fd);
+	FdItemIterator backend = fdList->find_fd(fd);
 	backend->replyParser->feed(message);
 	if (backend->replyParser->is_completed())
 	{
@@ -498,7 +498,7 @@ bool handle_local_reply(const char* message, int fd)
  */
 bool handle_backend_line(const char* line, int fd)
 {
-	ItemIterator it;
+	FdItemIterator it;
 	char buffer[PACKET_SIZE + 1];
 	int r;
 
@@ -539,12 +539,12 @@ bool handle_client_line(const char* line, int fd)
 		log_notice("Empty client line.");
 		return false;
 	}
-	ItemIterator client = fdList->find_fd(fd);
+	FdItemIterator client = fdList->find_fd(fd);
 	if (client == fdList->end()) {
 		log_warn("handle_client_line: Cannot lookup fd.");
 		return false;
 	}
-	ItemIterator backend = fdList->find_fd(commands_get_backend());
+	FdItemIterator backend = fdList->find_fd(commands_get_backend());
 	if (backend != fdList->end()) {
 		backend->replyParser->reset();
 		backend->expected = std::string(cmdptr);
@@ -569,7 +569,7 @@ bool handle_ctrl_cmd(const char* line, int fd)
 	char buff[PACKET_SIZE + 1];
 	const char* directive;
 	const char* const DELIM = " \t\n\r";
-	ItemIterator item = fdList->end() + 1;
+	FdItemIterator item = fdList->end() + 1;
 
 	strncpy(buff, line, sizeof(buff) - 1);
 	directive = strtok(buff, DELIM);

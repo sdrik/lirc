@@ -83,14 +83,14 @@ void commands_set_backend(int fd) { default_backend = fd; }
 bool connect_fds(int client_fd, int backend_fd)
 {
 	log_debug("Connecting client %d to %d", client_fd, backend_fd);
-	ItemIterator backend = fdList->find_fd(backend_fd);
+	FdItemIterator backend = fdList->find_fd(backend_fd);
 	if (backend == fdList-> end())
 		return false;
 	if (client_fd == 0) {
 		backend->connected_to = 0;
 		return true;
 	}
-	ItemIterator client = fdList->find_fd(client_fd);
+	FdItemIterator client = fdList->find_fd(client_fd);
 	backend->connected_to = client_fd;
 	if (client == fdList-> end())
 		return false;
@@ -103,8 +103,8 @@ bool connect_fds(int client_fd, int backend_fd)
 /** Dissolve relation created by connect() given any of the two parties. */
 bool disconnect_fds(int fd)
 {
-	ItemIterator me;
-	ItemIterator other;
+	FdItemIterator me;
+	FdItemIterator other;
 
 	log_debug("Disconnecting : %d", fd);
 	me = fdList->find_fd(fd);
@@ -136,7 +136,7 @@ bool broadcast_message(const char* message, int fd)
 {
 	std::vector<int> fds;
 
-	ItemIterator it = fdList->begin();
+	FdItemIterator it = fdList->begin();
 	while (it != fdList->end()) {
 		if (it->kind != FdItem::CLIENT_STREAM) {
 			it += 1;
@@ -161,7 +161,7 @@ bool broadcast_message(const char* message, int fd)
  *  Check argument count and return backend reflecting first arg after
  *  connecting fd.
  */
-static ItemIterator setup_backend_cmd(int fd,
+static FdItemIterator setup_backend_cmd(int fd,
 				      const std::vector<std::string>& args,
 				      const char* msg,
 				      size_t argcount)
@@ -177,7 +177,7 @@ static ItemIterator setup_backend_cmd(int fd,
 	auto find_func =
 		[](const FdItem& item, const char* what) ->
 			bool {return strcmp(what, item.id.c_str()) == 0; };
-	ItemIterator backend = fdList->find(args[0].c_str(), find_func);
+	FdItemIterator backend = fdList->find(args[0].c_str(), find_func);
 	if (backend == fdList->end()) {
 		send_error(fd, msg, "No such backend: %s", backend);
 		return fdList->end();
@@ -203,7 +203,7 @@ static int simulate_cmd(int fd, const char* msg, const char* args)
 	std::vector<std::string> commands = split_once(msg);
 	std::vector<std::string> arguments = split_once(args);
 
-	ItemIterator backend = setup_backend_cmd(fd, arguments, msg, 2);
+	FdItemIterator backend = setup_backend_cmd(fd, arguments, msg, 2);
 	if (backend == fdList->end())
 		return 0;
 	backend->expected = commands[0];
@@ -213,7 +213,7 @@ static int simulate_cmd(int fd, const char* msg, const char* args)
 		disconnect_fds(fd);
 		return 0;
 	}
-	ItemIterator client = fdList->find_fd(fd);
+	FdItemIterator client = fdList->find_fd(fd);
 	if (client == fdList->end()) {
 		send_error(fd, msg, "Internal error: send_cmd: bad fd");
 		return 0;
@@ -233,7 +233,7 @@ static int get_default_backend_cmd(int fd, const char* msg, const char* args)
 		send_error(fd, "GET_DEFAULT_BACKEND", "None");
 		return 1;
 	}
-	ItemIterator it = fdList->find_fd(default_backend);
+	FdItemIterator it = fdList->find_fd(default_backend);
 	if (it == fdList->end()) {
 		send_error(fd, "GET_DEFAULT_BACKEND", "Internal error");
 		log_warn("Cannot lookup default backend.");
@@ -247,7 +247,7 @@ static int get_default_backend_cmd(int fd, const char* msg, const char* args)
 /** LIST_BACKENDS command: Always succeeds, but might return no values. */
 static int list_backends_cmd(int fd, const char* msg, const char* args)
 {
-	ItemIterator it;
+	FdItemIterator it;
 	std::string backends("");
 
 	for (it = fdList->begin(); it != fdList->end(); it += 1) {
@@ -265,11 +265,11 @@ static int list_remotes_cmd(int fd, const char* msg, const char* args) {
 	std::vector<std::string> commands = split_once(msg);
 	std::vector<std::string> arguments = split_once(args);
 
-	ItemIterator backend = setup_backend_cmd(fd, arguments, msg, 1);
+	FdItemIterator backend = setup_backend_cmd(fd, arguments, msg, 1);
 	if (backend == fdList->end())
 		return 0;
 	backend->expected = commands[0];
-	ItemIterator client = fdList->find_fd(fd);
+	FdItemIterator client = fdList->find_fd(fd);
 	if (client == fdList->end()) {
 		send_error(fd, msg, "Internal error: send_cmd: bad fd");
 		return 0;
@@ -286,11 +286,11 @@ static int list_codes_cmd(int fd, const char* msg, const char* args) {
 	std::vector<std::string> commands = split_once(msg);
 	std::vector<std::string> arguments = split_once(args);
 
-	ItemIterator backend = setup_backend_cmd(fd, arguments, msg, 2);
+	FdItemIterator backend = setup_backend_cmd(fd, arguments, msg, 2);
 	if (backend == fdList->end())
 		return 0;
 	backend->expected = commands[0];
-	ItemIterator client = fdList->find_fd(fd);
+	FdItemIterator client = fdList->find_fd(fd);
 	if (client == fdList->end()) {
 		send_error(fd, msg, "Internal error: send_cmd: bad fd");
 		return 0;
@@ -305,7 +305,7 @@ static int list_codes_cmd(int fd, const char* msg, const char* args) {
 /** SET_DEFAULT_BACKEND command. */
 static int set_default_backend_cmd(int fd, const char* msg, const char* args)
 {
-	ItemIterator it;
+	FdItemIterator it;
 
 	std::string new_backend(args);
 	new_backend.erase(new_backend.find_last_not_of(" \n\r\t") + 1);
@@ -360,11 +360,11 @@ static int stop_backend_cmd(int fd, const char* msg, const char* argstring)
 	std::vector<std::string> commands = split_once(msg);
 	std::vector<std::string> arguments = split_once(argstring);
 
-	ItemIterator backend = setup_backend_cmd(fd, arguments, msg, 1);
+	FdItemIterator backend = setup_backend_cmd(fd, arguments, msg, 1);
 	if (backend == fdList->end())
 		return 0;
 	backend->expected = commands[0];
-	ItemIterator client = fdList->find_fd(fd);
+	FdItemIterator client = fdList->find_fd(fd);
 	if (client == fdList->end()) {
 		send_error(fd, msg,
 			   "Internal error: stop_backend_cmd: bad fd");
@@ -383,11 +383,11 @@ static int send_cmd(int fd, const char* msg, const char* argument)
 	std::vector<std::string> commands = split_once(msg);
 	std::vector<std::string> arguments = split_once(argument);
 
-	ItemIterator backend = setup_backend_cmd(fd, arguments, msg, 2);
+	FdItemIterator backend = setup_backend_cmd(fd, arguments, msg, 2);
 	if (backend == fdList->end())
 		return 0;
 	backend->expected = commands[0];
-	ItemIterator client = fdList->find_fd(fd);
+	FdItemIterator client = fdList->find_fd(fd);
 	if (client == fdList->end()) {
 		send_error(fd, msg, "Internal error: send_cmd: bad fd");
 		return 0;
@@ -422,11 +422,11 @@ static int set_transmitters_cmd(int fd, const char* msg, const char* args) {
 	std::vector<std::string> commands = split_once(msg);
 	std::vector<std::string> arguments = split_once(args);
 
-	ItemIterator backend = setup_backend_cmd(fd, arguments, msg, 0);
+	FdItemIterator backend = setup_backend_cmd(fd, arguments, msg, 0);
 	if (backend == fdList->end())
 		return 0;
 	backend->expected = commands[0];
-	ItemIterator client = fdList->find_fd(fd);
+	FdItemIterator client = fdList->find_fd(fd);
 	if (client == fdList->end()) {
 		send_error(fd, msg,
 			   "Internal error: set_transmitters: bad fd");

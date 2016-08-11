@@ -22,6 +22,8 @@
 #include "fd_list.h"
 #include "reply_parser.h"
 
+using namespace std;
+
 static void init(FdItem* item)
 {
 	item->fd = -1;
@@ -70,9 +72,9 @@ static bool item_fd_equals(const FdItem& item, int fd)
 }
 
 
-ItemIterator FdList::find(int what, bool (*cond)(const FdItem&, int))
+FdItemIterator FdList::find(int what, bool (*cond)(const FdItem&, int))
 {
-	ItemIterator it;
+	FdItemIterator it;
 
 	for (it = fd_list.begin(); it != fd_list.end(); it += 1) {
 		if (cond((*it), what))
@@ -82,10 +84,10 @@ ItemIterator FdList::find(int what, bool (*cond)(const FdItem&, int))
 }
 
 
-std::vector<int> FdList::select_fds(int what, bool (*cond)(const FdItem&, int))
+vector<int> FdList::select_fds(int what, bool (*cond)(const FdItem&, int))
 {
-	ItemIterator it;
-	std::vector<int> selected;
+	FdItemIterator it;
+	vector<int> selected;
 
 	for (it = fd_list.begin(); it != fd_list.end(); it += 1) {
 		if (cond((*it), what))
@@ -95,10 +97,10 @@ std::vector<int> FdList::select_fds(int what, bool (*cond)(const FdItem&, int))
 }
 
 
-ItemIterator FdList::find(const char* what,
+FdItemIterator FdList::find(const char* what,
 			  bool (*cond)(const FdItem&, const char*))
 {
-	ItemIterator it;
+	FdItemIterator it;
 
 	for (it = fd_list.begin(); it != fd_list.end(); it += 1) {
 		if (cond((*it), what))
@@ -108,7 +110,7 @@ ItemIterator FdList::find(const char* what,
 }
 
 
-ItemIterator FdList::find_fd(int fd)
+FdItemIterator FdList::find_fd(int fd)
 {
 	return find(fd, item_fd_equals);
 }
@@ -133,9 +135,9 @@ void FdList::add_client(int client_fd)
 }
 
 
-ItemIterator FdList::remove_client(int fd)
+FdItemIterator FdList::remove_client(int fd)
 {
-	ItemIterator it = find_fd(fd);
+	FdItemIterator it = find_fd(fd);
 	if (it == fd_list.end())
 		return it;
 	return fd_list.erase(it);
@@ -150,13 +152,13 @@ void FdList::add_ctrl_client(int client_fd)
 
 
 /** Remove fd and possible related peer. Returns FdList.end() if not found. */
-ItemIterator FdList::remove_backend(int fd)
+FdItemIterator FdList::remove_backend(int fd)
 {
-	ItemIterator it = find_fd(fd);
+	FdItemIterator it = find_fd(fd);
 	if (it == fd_list.end())
 		return it;
 	if ((*it).peer != -1) {
-		ItemIterator pi = find_fd((*it).peer);
+		FdItemIterator pi = find_fd((*it).peer);
 		if (pi == fd_list.end())
 			return pi;
 		fd_list.erase(pi);
@@ -166,8 +168,8 @@ ItemIterator FdList::remove_backend(int fd)
 }
 
 
-void FdList::get_pollfds(std::vector<FdItem>* items,
-			 std::vector<struct pollfd>* pollfds)
+void FdList::get_pollfds(vector<FdItem>* items,
+			 vector<struct pollfd>* pollfds)
 {
 	items->clear();
 	pollfds->clear();
