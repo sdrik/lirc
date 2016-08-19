@@ -5,7 +5,7 @@
 
 Name:           lirc
 Version:        0.9.4b
-Release:        %{?tag:0.}1%{?tag:.}%{?tag}%{?dist}.1
+Release:        %{?tag:0.}2%{?tag:.}%{?tag}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
 %global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}/
@@ -17,6 +17,11 @@ URL:            http://www.lirc.org/
 Source0:        %{?released:%{repo}}%{name}-%{version}%{?tag:-}%{?tag}.tar.gz
 Source1:        README.fedora
 Source2:        99-remote-control-lirc.rules
+                # Config only, cannot be upstreamed.
+Patch1:         0004-plugins-audio_alsa-Fix-byte-truncating-in-16-bit-dat.patch
+Patch2:         0005-contrib-Fix-usb-devices-acl-permissions-rhbz-1364744.patch
+Patch3:         0006-include-Update-bundled-lirc.h.patch
+Patch4:         0007-lircd-Remove-use-of-functions-killed-in-kernel-4.8.0.patch
 
 BuildRequires:  alsa-lib-devel
 Buildrequires:  autoconf
@@ -37,7 +42,6 @@ BuildRequires:  python3-PyYAML
 BuildRequires:  systemd-devel
 
 Requires:       %{name}-libs = %{version}-%{release}
-Requires:       python3-PyYAML
 
 Requires(pre):     shadow-utils
 Requires(post):    systemd
@@ -101,6 +105,7 @@ Summary:        LIRC Configuration Tools and Data
 Requires:       lirc-core = %{version}-%{release}
 Requires:       lirc-doc = %{version}-%{release}
 Requires:       gnome-icon-theme
+Requires:       python3-PyYAML
 BuildArch:      noarch
 
 %description    config
@@ -180,8 +185,18 @@ full support for the ftdi device.
 
 %prep
 %setup -qn %{name}-%{version}%{?tag}
+%patch1 -p1
+%patch2 -p1
+
+%if 0%fedora > 24
+%patch3 -p1
+%patch4 -p1
+cp lib/driver.h lib/lirc/driver.h
+%endif
+
 sed -i -e 's|/usr/local/etc/|/etc/|' contrib/irman2lirc
 sed -i -e 's/#effective-user/effective-user /' lirc_options.conf
+sed -i -e '/^effective-user/s/=$/= lirc/' lirc_options.conf
 
 
 %build
@@ -189,7 +204,6 @@ autoreconf -fi
 
 CFLAGS="%{optflags}" %configure --libdir=%{_libdir}
 make %{?_smp_mflags}
-
 
 %install
 make install DESTDIR=$RPM_BUILD_ROOT
@@ -334,24 +348,32 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_udevrulesdir}/99-remote-control-lirc.rules
 
 %changelog
+* Wed Aug 17 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4b-2
+- Added patch for audio_alsa plugin (#218).
+- Move R: python3-PyYAML to lirc-compat, fixes import error
+  https://retrace.fedoraproject.org/faf/reports/1229333/
+- Modify usb devices acl(5) udev rule (#1364744).
+
 * Tue Aug 09 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4b-1
 - Rebuilt for new upstream version 0.9.4b.
 
-* Tue Jun 28 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4a-1
-- New upstream release
-- Patches upstreamed
+* Tue Jul 19 2016 Fedora Release Engineering <rel-eng@lists.fedoraproject.org> - 0.9.4-3.1
+- https://fedoraproject.org/wiki/Changes/Automatic_Provides_for_Python_RPM_Packages
+
+* Wed Jun 29 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4a-1
+- New upstream release.
 - Fixes #1350750, bad systemd files syntax.
 
-* Thu Jun 02 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-4
-- Adding upstream patches:
-  + Fix intermittent parallel build errors.
-  + Fix bad debug comment in lirc_options.conf.
-  + Fix segfault using --connect (#195).
-  + Fix lirc.org doc errors.
-  + Fix disabled reception after send in girs.c
-  + Fix bad state after deinit() in uirt2_raw.c
+ * Thu Jun 02 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-4
+ - Adding upstream patches:
+   + Fix intermittent parallel build errors.
+   + Fix bad debug comment in lirc_options.conf.
+   + Fix segfault using --connect (#195).
+   + Fix lirc.org doc errors.
+   + Fix disabled reception after send in girs.c
+   + Fix bad state after deinit() in uirt2_raw.c
 
-* Thu May 26 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-3
+-* Thu May 26 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-3
 - Add fix for FTBS parallel build deps error.
 
 * Thu May 26 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-2
