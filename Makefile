@@ -4,37 +4,79 @@ PKG_VERSION    = $(shell grep VERSION sources/VERSION  2>/dev/null \
 
 # Retrieve debian version and release from the changelog
 VERSION_REL    = $(shell sed -n -e '/^lirc/s/.*(\(.*\)).*/\1/p;q' \
-                        < debian/changelog)
+                        < debian.changelog.in)
 DEBIAN_VERSION = $(shell echo $(VERSION_REL) | sed -e 's/-.*//' )
 DEBIAN_REL     = $(shell echo $(VERSION_REL) | sed 's/.*-//')
 
 UPSTREAM_SRC   = $(shell cd sources; git ls-files | sed 's|^|sources/|')
 UPSTREAM_GZ    = sources/lirc-$(PKG_VERSION).tar.gz
-DEBIAN_SRC     = $(shell find debian -type f)
+DEBIAN_SRC     = $(shell find debian -type f) \
+                 debian/NEWS debian/changelog debian/control
 DEBIAN_GZ      = lirc-debian-src-$(DEBIAN_VERSION)-$(DEBIAN_REL).tar.gz
 SRCDIR         = lirc-debian-src-$(DEBIAN_VERSION)
-DEBIAN_WORKDIR = $(SRCDIR)/lirc-$(DEBIAN_VERSION)/debian
-WORKDIR_SRC    = $(shell find $(DEBIAN_WORKDIR) -type f 2>/dev/null || echo "")
-
 UBUNTU_DEVS    = Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+DEBIAN_DEVS    = lirc Maintainer Team <pkg-lirc-maint@lists.alioth.debian.org>
 
 
-all: sid
+sid: STANDARDS_VERSION      = 3.9.8
+sid: MAINTAINER             = $(DEBIAN_DEVS)
+sid: DISTRIBUTION           = sid
+sid: CHANGELOG              = debian.changelog.in
+
+stretch: STANDARDS_VERSION  = 3.9.8
+stretch: MAINTAINER         = $(DEBIAN_DEVS)
+stretch: DISTRIBUTION       = stretch
+stretch: CHANGELOG          = debian.changelog.in
+
+jessie: STANDARDS_VERSION   = 3.9.5
+jessie: MAINTAINER          = $(DEBIAN_DEVS)
+jessie: DISTRIBUTION        = jessie
+jessie: CHANGELOG           = debian.changelog.in
+
+trusty: STANDARDS_VERSION   = 3.9.6
+trusty: MAINTAINER          = $(UBUNTU_DEVS)
+trusty: DISTRIBUTION        = trusty
+trusty: CHANGELOG           = ubuntu.changelog.in
+trusty: NO_SYSTEMD          = 1
+
+xenial: STANDARDS_VERSION   = 3.9.7
+xenial: MAINTAINER          = $(UBUNTU_DEVS)
+xenial: DISTRIBUTION        = xenial
+xenial: CHANGELOG           = ubuntu.changelog.in
 
 
-sid: debian
+all:	sid
 
+sid stretch jessie trusty xenial: $(DEBIAN_SRC) .phony
+	$(MAKE) debian
+
+debian/NEWS: NEWS.in
+	sed -e 's/@distribution@/$(DISTRIBUTION)/' < NEWS.in > debian/NEWS
+
+debian/control: control.in
+	sed -e 's/@standards_version@/$(STANDARDS_VERSION)/' \
+	    -e 's/@maintainer@/$(DEBIAN_DEVS)/'  < $? > $@
+	test -z "$(NO_SYSTEMD)" || sed  -i '/ systemd,$$/d' $@
+
+debian/changelog: $(CHANGELOG)
+	sed -e 's/@distribution@/$(DISTRIBUTION)/' < $(CHANGELOG)  > $@
+
+
+# If upstream isn't configured version isn't available => build upstream
+# and re-invoke make with same targets. Otherwise, run a complete make.
 
 ifeq  ($(PKG_VERSION),)
 
 debian: .phony
 	cd sources; ./autogen.sh; ./configure; make dist
+	cd sources; git checkout .
 	$(MAKE) $(MAKECMDGOALS)
 else
 
 debian: $(DEBIAN_GZ)
 
 endif
+
 
 $(UPSTREAM_GZ): $(UPSTREAM_SRC)
 	@echo "WARNING: Modified upstream sources."; sleep 2
@@ -51,12 +93,11 @@ $(DEBIAN_GZ): $(UPSTREAM_GZ) $(DEBIAN_SRC)
 	rm -r $(SRCDIR)/lirc-$(PKG_VERSION)
 	tar czf $@ $(SRCDIR)
 
-
 clean:
-	rm -rf $(SRCDIR) sources/debian $(DEBIAN_GZ)
-	cd sources; git checkout .
+	rm -rf $(SRCDIR) $(DEBIAN_GZ)
+	rm -rf debian/control debian/NEWS debian/changelog
 
 distclean: clean
-	cd sources; git checkout .; git clean -qxf
+	$(MAKE) -C sources distclean
 
 .phony:

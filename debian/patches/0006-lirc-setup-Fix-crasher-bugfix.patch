@@ -1,0 +1,30 @@
+From 33c188c38f5f89e704e4c775205e1d90ca55bc0d Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Sun, 21 Aug 2016 17:33:19 +0200
+Subject: [PATCH 06/10] lirc-setup: Fix crasher bugfix.
+
+Fixes https://retrace.fedoraproject.org/faf/reports/1166394/
+---
+ tools/lirc-setup/mvc_model.py | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/tools/lirc-setup/mvc_model.py b/tools/lirc-setup/mvc_model.py
+index 02d1413..48864d8 100644
+--- a/tools/lirc-setup/mvc_model.py
++++ b/tools/lirc-setup/mvc_model.py
+@@ -362,10 +362,10 @@ class DrvctlDeviceListModel(DeviceListModel):
+         self.label_by_device = {}
+         trypath = os.path.abspath(_here("../mode2"))
+         if not os.path.exists(trypath):
+-            trypath = os.path.join(BINDIR, "mode2")
++            trypath = os.path.join(config.BINDIR, "mode2")
+         if not os.path.exists(trypath):
+             raise FileNotFoundError("trypath")
+-        cmd = [trypath, "--driver" , self.driver_id, "--list-devices"]
++        cmd = [trypath, "--driver", self.driver_id, "--list-devices"]
+         try:
+             result = subprocess.check_output(cmd, universal_newlines=True)
+         except (OSError, subprocess.CalledProcessError):
+-- 
+2.5.5
+

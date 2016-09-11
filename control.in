@@ -1,9 +1,9 @@
-Standards-Version: 3.9.8
+Standards-Version: @standards_version@
 Source: lirc
 Section: utils
 Priority: extra
 Homepage: http://sf.net/p/lirc
-Maintainer: lirc Maintainer Team <pkg-lirc-maint@lists.alioth.debian.org>
+Maintainer: @maintainer@
 Uploaders:
   Stefan Lippers-Hollmann <s.l-h@gmx.de>,
   Alec leamas <leamas.alec@gmail.com>

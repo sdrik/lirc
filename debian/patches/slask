@@ -1,6 +1,3 @@
-0001-lirc.org-Remove-non-free-advertising.patch
-0007-tools-remove-configs-symlink.patch
-Add-hotplug-start-udev-from.0.9.0.patch
 0002-NEWS-lirc.org-index.html-Fixes.patch
 0003-irtoy-improve-error-handling-220.patch
 0004-plugins-audio_alsa-Fix-byte-truncating-in-16-bit-dat.patch
