@@ -1,3 +1,12 @@
 0001-lirc.org-Remove-non-free-advertising.patch
 0007-tools-remove-configs-symlink.patch
 Add-hotplug-start-udev-from.0.9.0.patch
+0002-NEWS-lirc.org-index.html-Fixes.patch
+0003-irtoy-improve-error-handling-220.patch
+0004-plugins-audio_alsa-Fix-byte-truncating-in-16-bit-dat.patch
+0005-contrib-disable-udev-dev-uinput-rule.patch
+0006-lirc-setup-Fix-crasher-bugfix.patch
+0007-contrib-Fix-usb-devices-acl-permissions-rhbz-1364744.patch
+0008-lircd-Retry-temporary-unavailable-write-sockets-221.patch
+0009-lircd-Warn-for-duplicate-remote-definitions-222.patch
+0010-lirc-make-devinput-Fix-that-two-remotes-has-the-same.patch
