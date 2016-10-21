@@ -33,7 +33,7 @@ jessie: MAINTAINER          = $(DEBIAN_DEVS)
 jessie: DISTRIBUTION        = jessie
 jessie: CHANGELOG           = debian.changelog.in
 
-trusty: STANDARDS_VERSION   = 3.9.6
+trusty: STANDARDS_VERSION   = 3.9.5
 trusty: MAINTAINER          = $(UBUNTU_DEVS)
 trusty: DISTRIBUTION        = trusty
 trusty: CHANGELOG           = ubuntu.changelog.in

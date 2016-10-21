@@ -17,6 +17,7 @@ usr/bin/mode2
 usr/bin/irw
 usr/bin/irsend
 usr/bin/irsimsend
+usr/bin/irtext2udp
 usr/bin/irpipe
 usr/bin/irexec
 usr/bin/ircat
@@ -41,6 +42,7 @@ usr/share/man/man1/mode2.1*
 usr/share/man/man1/irtestcase.1*
 usr/share/man/man1/lirc-lsplugins.1*
 usr/share/man/man1/irsimsend.1*
+usr/share/man/man1/irtext2udp.1*
 usr/share/man/man1/lirc-config-tool.1*
 usr/share/man/man1/irdb-get.1*
 usr/share/man/man1/ircat.1*
