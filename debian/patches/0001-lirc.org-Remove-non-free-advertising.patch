@@ -1,7 +1,6 @@
-From d1194246f7d3e253f0398988cd57ae52077a866f Mon Sep 17 00:00:00 2001
-From: Alec Leamas <leamas@nowhere.net>
+Author: Alec Leamas <leamas@nowhere.net>
 Date: Tue, 6 Oct 2015 01:56:21 +0200
-Subject: [PATCH] lirc.org: Remove non-free advertising.
+Description: lirc.org: Remove non-free advertising.
 
 ---
  doc/lirc.org/index.html        | 14 --------------

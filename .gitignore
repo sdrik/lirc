@@ -3,6 +3,3 @@
 .sync-stamp
 *.gz
 *.BAK
-debian/changelog
-debian/NEWS
-debian/control
