@@ -1,4 +1,4 @@
-lirc (0.9.4c-0.1) experimental; urgency=medium
+lirc (0.9.4c-0.1) @distribution@; urgency=medium
 
   * Non-maintainer upload.
   * New upstream release 0.9.4c
