@@ -1,3 +1,12 @@
+lirc (0.9.4c-1) experimental; urgency=medium
+
+  * New upstream release.
+  * New tool irtext2udp.
+  * Resolves build errors on kernels > 4.8.0A.
+  * Most of patches upstreamed.
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Sat, 22 Oct 2016 14:52:05 +0200
+
 lirc (0.9.4b-0.3) experimental; urgency=medium
 
   * Non-maintainer upload.
