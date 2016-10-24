@@ -2,11 +2,16 @@
 
 ### General
 
-The debian packaging lives in the 'debian' branch of the lirc project.
-The goal is to provide modern lirc packages for debian and ubuntu. At
-the time of writing it provides 0.9.4 packages.
+The debian packaging lives in two branches  'debian'  and 'debian-src'.
+The goal is to provide modern lirc packages for debian and ubuntu. The
+'debian' branch contains the official packaging which builds on debian
+stretch and ubuntu zesty.
 
-The packaging provides a debian source package. Such a source package
+The debian-src branch is what goes into the lirc source tarballs, including
+this README. It is known to build on debian/jessie, debian/stretch,
+ubuntu/trusty and ubuntu/xenial.
+
+debian-src provides a debian source package. Such a source package
 can be built using git clone (below). Lirc releases also contains a
 prebuilt source package [1].
 
@@ -18,14 +23,14 @@ Describing this procedure is the main purpose of this document.
 
 To build the debian source package clone and run make using something like:
 
-    $ git clone --recursive -b debian git://git.code.sf.net/p/lirc/git lirc-pkg
+    $ git clone --recursive -b debian-src git://git.code.sf.net/p/lirc/git lirc-pkg
     $ cd lirc-pkg
     $ make jessie
 
 This creates a tarball lirc-debian-src-0.9.4-1.3.tar.gz. See below for
 creating binary .deb packages from the debian sources.
 
-The *jessie* target could actually be any of jessie, stretch, jessie or
+The *jessie* target could actually be any of jessie, stretch, trusty or
 xenial.  A plain make defaults to creating a sid (unstable) tarball.
 
 Creating the source package is also tested on Fedora. This requires
@@ -34,8 +39,8 @@ leamas's dpkg-addons repo and some packages:
     # dnf copr enable leamas/dpkg-addons
     # dnf install dpkg-addons dpkg dpkg-dev devscripts dh-python dh-systemd
 
-The imported upstream lirc sources lives in the "sources" submodule. It
-typically is committed as last release i. e., the --recursive clone
+The imported upstream lirc sources lives in the "sources" submodule. It's
+typically committed as last release i. e., the --recursive clone
 command (above) checks out this.
 
 
