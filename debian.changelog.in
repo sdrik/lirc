@@ -1,4 +1,12 @@
-lirc (0.9.4c-0.2) @distribution@; urgency=medium
+lirc (0.9.4c-0.3) @distribution@; urgency=medium
+
+  * Non-maintainer upload.
+  * Fix client build errors caused bu curl_poll.h
+  * Fix typo in girs plugin default device
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Tue, 25 Oct 2016 10:51:56 +0200
+
+lirc (0.9.4c-0.2) experimental; urgency=medium
 
   * Non-maintainer upload.
   * Restore conditional deps for older ubuntu/debian
