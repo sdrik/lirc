@@ -1,4 +1,12 @@
-lirc (0.9.4c-0.1) @distribution@; urgency=medium
+lirc (0.9.4c-0.2) @distribution@; urgency=medium
+
+  * Non-maintainer upload.
+  * Restore conditional deps for older ubuntu/debian
+  * README-md update
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Mon, 24 Oct 2016 11:11:12 +0200
+
+lirc (0.9.4c-0.1) experimental; urgency=medium
 
   * Non-maintainer upload.
   * New upstream release 0.9.4c
@@ -1456,6 +1464,3 @@ lirc (0.6.0pre6-1) unstable; urgency=low
   * Initial Release.
 
  -- Tom Lees <tom@debian.org>  Thu, 30 Mar 2000 19:30:57 +0100
-
-
-
