@@ -1,3 +1,9 @@
+lirc (0.9.4c-2) experimental; urgency=medium
+
+  * Fix unconfigured clients build errors.
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Tue, 25 Oct 2016 10:32:39 +0200
+
 lirc (0.9.4c-1) experimental; urgency=medium
 
   * New upstream release.
