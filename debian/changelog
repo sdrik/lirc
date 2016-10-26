@@ -1,3 +1,10 @@
+lirc (0.9.4c-3) experimental; urgency=medium
+
+  * debian/control: Fix bad upgrade paths.
+  * Fix bad library specification in lirc.pc (#236)
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Tue, 25 Oct 2016 21:46:06 +0200
+
 lirc (0.9.4c-2) experimental; urgency=medium
 
   * Fix unconfigured clients build errors.
