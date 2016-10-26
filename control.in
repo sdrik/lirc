@@ -143,8 +143,8 @@ Pre-Depends: ${misc:Pre-Depends}
 Breaks:
  inputlirc (<< 19),
  kradio (<< 4),
- liblircclient (<=0.9.4~pre1)
-Replaces: liblircclient (<=0.9.4~pre1)
+ liblircclient0 (<=0.9.4~pre1)
+Replaces: liblircclient0 (<=0.9.4~pre1)
 Description: infra-red remote control support - client library
  LIRC stands for 'Linux Infra-red Remote Control'.
  .
