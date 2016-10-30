@@ -1,9 +1,9 @@
-Standards-Version: @standards_version@
+Standards-Version: 3.9.8
 Source: lirc
 Section: utils
 Priority: extra
 Homepage: http://sf.net/p/lirc
-Maintainer: @maintainer@
+Maintainer: lirc Maintainer Team <pkg-lirc-maint@lists.alioth.debian.org>
 Uploaders:
   Stefan Lippers-Hollmann <s.l-h@gmx.de>,
   Alec leamas <leamas.alec@gmail.com>
@@ -15,7 +15,7 @@ Build-Depends:
  dh-systemd,
  dh-python,
  doxygen,
- module-init-tools | kmod,
+ module-init-tools | kmod [linux-any],
  libasound2-dev [linux-any kfreebsd-any],
  libftdi1-dev | libftdi-dev,
  libsystemd-daemon-dev | libsystemd-dev,
@@ -28,7 +28,7 @@ Build-Depends:
  portaudio19-dev | libportaudio19-dev,
  python3,
  python3-yaml,
- systemd,
+ systemd | systemd-services,
  xsltproc
 # libjs-jquery
 
@@ -38,7 +38,7 @@ Depends:
  liblirc0 (= ${binary:Version}),
  ${misc:Depends},
  ${shlibs:Depends},
- lsb-base,
+ lsb-base (>= 3.0-6),
  python3
 Suggests:
  lirc-drv-irman,
@@ -91,7 +91,7 @@ Description: Infra-red remote control support - Run-time libraries
  LIRC stands for 'Linux Infra-red Remote Control'.
  .
  Package contains internal LIRC runtime libs used by external applications
- (liblirc-client.so*), drivers (liblirc_driver.so*) and also internal
+ (liblirc_client.so*), drivers (liblirc_driver.so*) and also internal
  LIRC applications (lirc_private.so*)
 
 
@@ -143,8 +143,8 @@ Pre-Depends: ${misc:Pre-Depends}
 Breaks:
  inputlirc (<< 19),
  kradio (<< 4),
- liblircclient (<=0.9.4~pre1)
-Replaces: liblircclient (<=0.9.4~pre1)
+ liblircclient0 (<=0.9.4~pre1)
+Replaces: liblircclient0 (<=0.9.4~pre1)
 Description: infra-red remote control support - client library
  LIRC stands for 'Linux Infra-red Remote Control'.
  .

@@ -1,3 +1,29 @@
+lirc (0.9.4c-0.4) unstable; urgency=low
+
+  * Non-maintainer upload
+  * Resolves (new bugs) LP: #1636355, LP: #1636353
+  * Resolves (old bugs) LP: #1497266, LP: #1565070, LP: #1395570,
+    LP: #1393056, LP: #1310508, LP: #1203483, LP: #1438381,
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Fri, 28 Oct 2016 15:46:34 +0200
+
+lirc (0.9.4c-0.3) experimental; urgency=medium
+
+  * Non-maintainer upload.
+  * Fix client build errors caused by curl_poll.h.
+  * Fix typo in girs plugin default device
+  * Fix wrong -l in lirc.pc
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Tue, 25 Oct 2016 10:51:56 +0200
+
+lirc (0.9.4c-0.2) experimental; urgency=medium
+
+  * Non-maintainer upload.
+  * Restore conditional deps for older ubuntu/debian
+  * README-md update
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Mon, 24 Oct 2016 11:11:12 +0200
+
 lirc (0.9.4c-0.1) experimental; urgency=medium
 
   * Non-maintainer upload.
@@ -1456,6 +1482,3 @@ lirc (0.6.0pre6-1) unstable; urgency=low
   * Initial Release.
 
  -- Tom Lees <tom@debian.org>  Thu, 30 Mar 2000 19:30:57 +0100
-
-
-

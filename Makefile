@@ -4,7 +4,7 @@ PKG_VERSION    = $(shell grep VERSION sources/VERSION  2>/dev/null \
 
 # Retrieve debian version and release from the changelog
 VERSION_REL    = $(shell sed -n -e '/^lirc/s/.*(\(.*\)).*/\1/p;q' \
-                        < debian.changelog.in)
+                        < debian/changelog)
 DEBIAN_VERSION = $(shell echo $(VERSION_REL) | sed -e 's/-.*//' )
 DEBIAN_REL     = $(shell echo $(VERSION_REL) | sed 's/.*-//')
 
@@ -18,49 +18,10 @@ UBUNTU_DEVS    = Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 DEBIAN_DEVS    = lirc Maintainer Team <pkg-lirc-maint@lists.alioth.debian.org>
 
 
-sid: STANDARDS_VERSION      = 3.9.8
-sid: MAINTAINER             = $(DEBIAN_DEVS)
-sid: DISTRIBUTION           = sid
-sid: CHANGELOG              = debian.changelog.in
-
-stretch: STANDARDS_VERSION  = 3.9.8
-stretch: MAINTAINER         = $(DEBIAN_DEVS)
-stretch: DISTRIBUTION       = stretch
-stretch: CHANGELOG          = debian.changelog.in
-
-jessie: STANDARDS_VERSION   = 3.9.5
-jessie: MAINTAINER          = $(DEBIAN_DEVS)
-jessie: DISTRIBUTION        = jessie
-jessie: CHANGELOG           = debian.changelog.in
-
-trusty: STANDARDS_VERSION   = 3.9.5
-trusty: MAINTAINER          = $(UBUNTU_DEVS)
-trusty: DISTRIBUTION        = trusty
-trusty: CHANGELOG           = ubuntu.changelog.in
-trusty: NO_SYSTEMD          = 1
-
-xenial: STANDARDS_VERSION   = 3.9.7
-xenial: MAINTAINER          = $(UBUNTU_DEVS)
-xenial: DISTRIBUTION        = xenial
-xenial: CHANGELOG           = ubuntu.changelog.in
-
-
 all:	sid
 
 sid stretch jessie trusty xenial: $(DEBIAN_SRC) .phony
 	$(MAKE) debian
-
-debian/NEWS: NEWS.in
-	sed -e 's/@distribution@/$(DISTRIBUTION)/' < NEWS.in > debian/NEWS
-
-debian/control: control.in
-	sed -e 's/@standards_version@/$(STANDARDS_VERSION)/' \
-	    -e 's/@maintainer@/$(DEBIAN_DEVS)/'  < $? > $@
-	test -z "$(NO_SYSTEMD)" || sed  -i '/ systemd,$$/d' $@
-
-debian/changelog: $(CHANGELOG)
-	sed -e 's/@distribution@/$(DISTRIBUTION)/' < $(CHANGELOG)  > $@
-
 
 # If upstream isn't configured version isn't available => build upstream
 # and re-invoke make with same targets. Otherwise, run a complete make.
@@ -95,7 +56,6 @@ $(DEBIAN_GZ): $(UPSTREAM_GZ) $(DEBIAN_SRC)
 
 clean:
 	rm -rf $(SRCDIR) $(DEBIAN_GZ)
-	rm -rf debian/control debian/NEWS debian/changelog
 
 distclean: clean
 	$(MAKE) -C sources distclean
