@@ -2,13 +2,17 @@
 
 ### General
 
-The debian packaging lives in the 'debian' branch of the lirc project.
-The goal is to provide modern lirc packages for debian and ubuntu. At
-the time of writing it provides 0.9.4 packages.
+The debian packaging lives in two branches  'debian' and 'ubuntu' in the
+lirc project.  The goal is to provide modern lirc packages for debian and
+ubuntu. At the time of writing it provides 0.9.4 packages.
+
+The 'debian' branch is used for the official packaging available in
+Debian (stretch) and Ubuntu (zesty). The 'ubuntu' branch builds on
+debian (jessie) and ubuntu (trusty, xenial and yakkety).
 
 The packaging provides a debian source package. Such a source package
 can be built using git clone (below). Lirc releases also contains a
-prebuilt source package [1].
+prebuilt source package [1], built from the  'ubuntu' branch.
 
 To use the source package it must be used to build binary .deb packages.
 Describing this procedure is the main purpose of this document.
@@ -18,15 +22,12 @@ Describing this procedure is the main purpose of this document.
 
 To build the debian source package clone and run make using something like:
 
-    $ git clone --recursive -b debian git://git.code.sf.net/p/lirc/git lirc-pkg
+    $ git clone --recursive -b ubuntu git://git.code.sf.net/p/lirc/git lirc-pkg
     $ cd lirc-pkg
-    $ make jessie
+    $ make
 
 This creates a tarball lirc-debian-src-0.9.4-1.3.tar.gz. See below for
 creating binary .deb packages from the debian sources.
-
-The *jessie* target could actually be any of jessie, stretch, jessie or
-xenial.  A plain make defaults to creating a sid (unstable) tarball.
 
 Creating the source package is also tested on Fedora. This requires
 leamas's dpkg-addons repo and some packages:
@@ -35,7 +36,7 @@ leamas's dpkg-addons repo and some packages:
     # dnf install dpkg-addons dpkg dpkg-dev devscripts
 
 The imported upstream lirc sources lives in the "sources" submodule. It
-typically is committed as last release i. e., the --recursive clone
+is typically committed as last release i. e., the --recursive clone
 command (above) checks out this.
 
 
@@ -47,8 +48,7 @@ rebuild it from git (above) and do something similar to
     $ tar xf lirc-debian-src-0.9.4-1.3.tar.gz
     $ cd lirc-debian-src-0.9.4
     $ sudo apt-get install pbuilder
-    $ sudo pbuilder create --distribution stretch  --override-config
-    ## stretch could be 'jessie', or 'sid'.
+    $ sudo pbuilder create --distribution jessie  --override-config
     $ sudo rm -f /var/cache/pbuilder/result/*
     $ sudo pbuilder build *.dsc
 
@@ -80,8 +80,7 @@ cleaned up. Then proceed with the same steps as for Debian, but use a
 ubuntu distro instead of a debian one i. e.,
 
     $ sudo pbuilder create --distribution trusty  --override-config
-    ## Or 'xenial'.
-r
+    ## Or 'xenial', 'yakkety'.
 
 
 ### Building a patched version

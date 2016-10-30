@@ -48,6 +48,6 @@ override_dh_python3:
 	dh_link /usr/share/lirc/configs \
 	    /usr/lib/python3/dist-packages/lirc/configs
 
-override_dh_fixperms-arch:
+override_dh_fixperms:
 	dh_fixperms
 	chmod 755 debian/lirc/usr/share/lirc/contrib/irman2lirc

@@ -5,4 +5,5 @@
 0006-Build-Use-HAVE_UINPUT-1-to-force-building-uinput-cod.patch
 0007-tools-remove-configs-symlink.patch
 0008-systemd-Fix-wrong-path-to-irexec-239.patch
+0010-lib-Only-use-local-headers-in-lirc_private.h-237.patch
 Add-hotplug-start-udev-from.0.9.0.patch
