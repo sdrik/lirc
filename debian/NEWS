@@ -1,4 +1,4 @@
-lirc (0.9.4c-3) experimental; urgency=medium
+lirc (0.9.4c-4) unstable; urgency=low
 
    The 0.9.4 configuration needs to be manually updated when updating
    from 0.9.0.

@@ -1,3 +1,13 @@
+lirc (0.9.4c-4) unstable; urgency=low
+
+  * Team upload.
+  * Upload to unstable.
+  * Resolves (new bugs) LP: #1636355, LP: #1636353
+  * Resolves (old bugs) LP: #1497266, LP: #1565070, LP: #1395570, 
+    LP: #1393056, LP: #1310508, LP: #1203483, LP: #1438381,
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Fri, 28 Oct 2016 15:46:34 +0200
+
 lirc (0.9.4c-3) experimental; urgency=medium
 
   * debian/control: Fix bad upgrade paths.

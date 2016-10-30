@@ -9,6 +9,9 @@ export DEB_LDFLAGS_MAINT_APPEND     = -Wl,--as-needed
 override_dh_autoreconf:
 	dh_autoreconf $(CURDIR)/autogen.sh
 
+override_dh_auto_configure:
+	dh_auto_configure -- HAVE_UINPUT=1
+
 override_dh_shlibdeps:
 	dh_shlibdeps -l $(CURDIR)/debian/tmp/usr/lib/*/lirc/plugins
 
