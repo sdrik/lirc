@@ -119,6 +119,9 @@ def get_lircd_options(hardware_cf, etcdir):
             _warn("--driver in LIRC_ARGS obsoleted by DRIVER.")
         args['driver'] = hardware_cf['driver']
 
+    if not 'driver' in args:
+        args['driver'] = 'default';
+
     parser = configparser.RawConfigParser()
     if os.path.exists(options_path):
         parser.read(options_path)

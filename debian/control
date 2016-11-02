@@ -12,23 +12,24 @@ Vcs-Browser: https://sourceforge.net/p/lirc/git/ci/debian/tree/
 Build-Depends:
  debhelper (>= 9),
  dh-autoreconf,
+ dh-exec,
  dh-systemd,
  dh-python,
  doxygen,
  kmod [linux-any],
  libasound2-dev [linux-any kfreebsd-any],
  libftdi1-dev,
- libsystemd-dev,
+ libsystemd-dev [linux-any],
  libudev-dev [linux-any],
- libusb-1.0-0-dev [linux-any],
- libusb-dev,
+ libusb-1.0-0-dev [!kfreebsd-any],
+ libusb-dev[!kfreebsd-any],
  libx11-dev,
  man2html-base,
  pkg-config,
  portaudio19-dev,
  python3,
  python3-yaml,
- systemd,
+ systemd [linux-any],
  xsltproc
 # libjs-jquery
 

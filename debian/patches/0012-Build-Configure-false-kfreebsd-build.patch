@@ -1,0 +1,30 @@
+From fdda3d7b40795c1742e310c124f8f200879745f0 Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Tue, 8 Nov 2016 20:12:41 +0100
+Subject: [PATCH] Build: Configure false (kfreebsd build).
+
+---
+ configure.ac | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/configure.ac b/configure.ac
+index ee772d5..4cf853a 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -16,10 +16,12 @@ AC_PROG_CXX
+ AC_PROG_INSTALL
+ AC_PROG_MAKE_SET
+ AC_PATH_PROG(SH_PATH,[sh])
++AC_PATH_PROG(FALSE,[false],[no],)
++test x$FALSE = xno && AC_MSG_ERROR([Cannot locate false (!)]) || :
+ AC_CHECK_PROGS([MODINFO], [modinfo], [no], [$PATH:/sbin:/usr/sbin])
+ if test x$MODINFO = xno; then
+   AC_MSG_WARN(["No modinfo command found - skipping kernel drivers."])
+-  MODINFO="/usr/bin/false"
++  MODINFO="$FALSE"
+ else
+   MODINFO=$( PATH=$PATH:/sbin:/usr/sbin which modinfo )
+ fi
+-- 
+2.5.5
+

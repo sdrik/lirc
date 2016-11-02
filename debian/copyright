@@ -22,6 +22,10 @@ Files: lib/config_file.*
 Copyright: 1998, Pablo d'Angelo <pablo@ag-trek.allgaeu.org>
 License: GPL-2.0+
 
+Files: lib/curl_poll.*
+Copyright: Copyright (C) 1998 - 2012, Daniel Stenberg, <daniel@haxx.se>, et al
+License: MIT
+
 Files: plugins/accent.*
 Copyright: 2007, Christoph Bartelmus <lirc@bartelmus.de>
            2007, Bart Alewijnse <scarfboy@yahoo.com>
@@ -98,7 +102,7 @@ Copyright: 2002, Jim Paris <jim@jtan.com>
 License: GPL-2.0+
 
 Files: plugins/girs.c
-Copyright: 2015, Bengt Martensson
+Copyright: 2015, 2016, Bengt Martensson
 License: GPL-2.0+
 
 Files: plugins/hiddev.c

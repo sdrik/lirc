@@ -1,0 +1,248 @@
+From b256db4621d6edd63697270b034a57f1f9fb1c61 Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Tue, 8 Nov 2016 21:38:48 +0100
+Subject: [PATCH] Build: Don't generate linux files on non-linux hosts
+ (kfreebsd build).
+
+---
+ Makefile.am         |  4 ++--
+ configure.ac        | 22 ++++++++++++++++++----
+ doc/Makefile.am     | 37 ++++++++++++++++++++++++++++---------
+ lib/Makefile.am     | 10 +++++-----
+ plugins/Makefile.am |  4 ++--
+ tools/Makefile.am   |  9 +++++++--
+ 6 files changed, 62 insertions(+), 24 deletions(-)
+
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -36,9 +36,9 @@
+                           irexec.lircrc
+ 
+ lircdconfigdir		= $(sysconfdir)/lirc/lircd.conf.d
+-dist_lircdconfig_DATA	= README.conf.d 
++dist_lircdconfig_DATA	= README.conf.d
+ 
+-if !BSD
++if LINUX_KERNEL
+ dist_lircdconfig_DATA	+= devinput.lircd.conf
+ endif
+ 
+--- a/configure.ac
++++ b/configure.ac
+@@ -98,10 +98,24 @@
+ 	;;
+     *)  osflags=''
+ esac
++AC_SUBST(osflags)
+ 
+ AM_CONDITIONAL([DARWIN], [test "$osflags" = "-DDARWIN"])
+-AM_CONDITIONAL([BSD], [test -n "$osflags"])
+-AC_SUBST(osflags)
++
++AC_MSG_CHECKING([for linux kernel])
++AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[ ]], [[
++    #ifndef __linux__
++    #error Not linux
++    #endif
++  ]])],[
++    AC_MSG_RESULT(yes)
++    AM_CONDITIONAL([LINUX_KERNEL],[true])
++  ],[
++    AC_MSG_RESULT(no)
++    AM_CONDITIONAL([LINUX_KERNEL],[false])
++  ]
++)
++
+ 
+ x_progs="irxevent xmode2"
+ AC_PATH_XTRA
+@@ -517,7 +531,7 @@
+ AC_REPORT_CONDITIONAL([DEVEL])
+ AC_REPORT_CONDITIONAL([HAVE_UINPUT])
+ AC_REPORT_CONDITIONAL([DARWIN])
+-AC_REPORT_CONDITIONAL([BSD])
++AC_REPORT_CONDITIONAL([LINUX_KERNEL])
+ 
+ echo
+ 
+--- a/doc/Makefile.am
++++ b/doc/Makefile.am
+@@ -198,7 +198,6 @@
+ man_sources             += $(srcdir)/man-source/ircat.1 \
+                            $(srcdir)/man-source/irdb-get.1 \
+                            $(srcdir)/man-source/irexec.1 \
+-                           $(srcdir)/man-source/irpipe.1 \
+                            $(srcdir)/man-source/irpty.1 \
+                            $(srcdir)/man-source/irrecord.1 \
+                            $(srcdir)/man-source/irsimreceive.1 \
+@@ -210,10 +209,8 @@
+                            $(srcdir)/man-source/lirc-config-tool.1 \
+                            $(srcdir)/man-source/lirc-lsplugins.1 \
+                            $(srcdir)/man-source/lirc-lsremotes.1 \
+-                           $(srcdir)/man-source/lirc-make-devinput.1 \
+                            $(srcdir)/man-source/lirc-setup.1 \
+                            $(srcdir)/man-source/lircd-setup.8 \
+-                           $(srcdir)/man-source/lircd-uinput.8 \
+                            $(srcdir)/man-source/lircd.8 \
+                            $(srcdir)/man-source/lircd.conf.5 \
+                            $(srcdir)/man-source/lircmd.8 \
+@@ -222,6 +219,15 @@
+                            $(srcdir)/man-source/mode2.1 \
+                            $(srcdir)/man-source/pronto2lirc.1
+ 
++if LINUX_KERNEL
++man_sources             += $(srcdir)/man-source/irpipe.1 \
++                           $(srcdir)/man-source/lirc-make-devinput.1
++endif
++
++if HAVE_UINPUT
++man_sources             += $(srcdir)/man-source/lircd-uinput.8
++endif
++
+ plugindocs              =  $(srcdir)/plugindocs/alsa-usb.html \
+                            $(srcdir)/plugindocs/atilibusb.html \
+                            $(srcdir)/plugindocs/atwf83.html \
+@@ -266,7 +272,6 @@
+ nodist_man_MANS         += man/ircat.1 \
+                            man/irdb-get.1 \
+                            man/irexec.1 \
+-                           man/irpipe.1 \
+                            man/irpty.1 \
+                            man/irrecord.1 \
+                            man/irsimreceive.1 \
+@@ -278,11 +283,9 @@
+                            man/lirc-config-tool.1 \
+                            man/lirc-lsplugins.1 \
+                            man/lirc-lsremotes.1 \
+-                           man/lirc-make-devinput.1 \
+                            man/lirc-setup.1 \
+                            man/lircd.8 \
+                            man/lircd-setup.8 \
+-                           man/lircd-uinput.8 \
+                            man/lircd.conf.5 \
+                            man/lircmd.8 \
+                            man/lircrcd.8 \
+@@ -290,10 +293,19 @@
+                            man/mode2.1 \
+                            man/pronto2lirc.1
+ 
++if LINUX_KERNEL
++nodist_man_MANS         += man/irpipe.1 \
++                           man/lirc-make-devinput.1
++endif
++
++if HAVE_UINPUT
++nodist_man_MANS         += man/lircd-uinput.8
++endif
++
++
+ manpage_html            += man-html/ircat.html \
+                            man-html/irdb-get.html \
+                            man-html/irexec.html \
+-                           man-html/irpipe.html \
+                            man-html/irpty.html \
+                            man-html/irrecord.html \
+                            man-html/irsimreceive.html \
+@@ -306,10 +318,8 @@
+                            man-html/lirc.html \
+                            man-html/lirc-lsplugins.html \
+                            man-html/lirc-lsremotes.html \
+-                           man-html/lirc-make-devinput.html \
+                            man-html/lirc-setup.html \
+                            man-html/lircd-setup.html \
+-                           man-html/lircd-uinput.html \
+                            man-html/lircd.html \
+                            man-html/lircd.conf.html \
+                            man-html/lircmd.html \
+@@ -318,6 +328,15 @@
+                            man-html/mode2.html \
+                            man-html/pronto2lirc.html
+ 
++if LINUX_KERNEL
++manpage_html            += man-html/irpipe.html \
++                           man-html/lirc-make-devinput.html
++endif
++
++if HAVE_UINPUT
++manpage_html            += man-html/lircd-uinput.html
++endif
++
+ generated_plugindocs    =  html/alsa-usb.html \
+                            html/atilibusb.html \
+                            html/atwf83.html \
+--- a/lib/Makefile.am
++++ b/lib/Makefile.am
+@@ -104,15 +104,15 @@
+ 
+ input_map.inc: lirc/input_map.inc
+ 
+-if BSD
+-lirc/input_map.inc:
+-	touch $@
+-	touch touch input_map.inc
+-else
++if LINUX_KERNEL
+ lirc/input_map.inc:
+ 	ln -s . lirc || :
+ 	$(top_srcdir)/tools/lirc-make-devinput -i > input_map.inc
+ 	$(top_srcdir)/tools/lirc-make-devinput -i > $@
++else
++lirc/input_map.inc:
++	touch $@
++	touch input_map.inc
+ endif
+ 
+ checkfiles:
+--- a/plugins/Makefile.am
++++ b/plugins/Makefile.am
+@@ -41,7 +41,7 @@
+ srm7500libusb_la_LDFLAGS    = $(AM_LDFLAGS) @usb_libs@
+ srm7500libusb_la_CFLAGS     = $(AM_CFLAGS) $(LIBUSB_CFLAGS)
+ 
+-if !BSD
++if LINUX_KERNEL
+ plugin_LTLIBRARIES          += commandir.la
+ commandir_la_SOURCES        = commandir.c
+ commandir_la_LDFLAGS        = $(AM_LDFLAGS) @usb_libs@
+@@ -113,7 +113,7 @@
+ osx_usbraw_la_LDFLAGS       = $(AM_LDFLAGS) -framework IOKit -framework Cocoa
+ endif
+ 
+-if !BSD
++if LINUX_KERNEL
+ plugin_LTLIBRARIES          += default.la
+ default_la_SOURCES          = default.c
+ 
+--- a/tools/Makefile.am
++++ b/tools/Makefile.am
+@@ -20,7 +20,6 @@
+ sbin_PROGRAMS           = lirc-lsplugins
+ bin_PROGRAMS            = ircat \
+                           irexec \
+-                          irpipe \
+                           irrecord \
+                           irsend \
+                           irsimreceive \
+@@ -33,6 +32,9 @@
+ bin_PROGRAMS            += xmode2 irxevent
+ endif
+ 
++if LINUX_KERNEL
++bin_PROGRAMS            += irpipe
++endif
+ 
+ if !DARWIN
+ bin_PROGRAMS            += irpty
+@@ -75,8 +77,11 @@
+ xmode2_LDADD            = @X_LIBS@ @X_PRE_LIBS@ -lX11 @X_EXTRA_LIBS@ \
+                           $(LIRC_LIBS)
+ 
+-dist_bin_SCRIPTS        = lirc-config-tool lirc-make-devinput
++dist_bin_SCRIPTS        = lirc-config-tool
+ 
++if LINUX_KERNEL
++dist_bin_SCRIPTS        += lirc-make-devinput
++endif
+ 
+ if NEED_PYTHON3
+ dist_bin_SCRIPTS        += python3
