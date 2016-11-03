@@ -1,3 +1,10 @@
+lirc (0.9.4c-0.5) unstable; urgency=medium
+
+  * Non-maintainer upload
+  * Add info on new package lirc-compat-remotes.
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Wed, 02 Nov 2016 20:04:32 +0100
+
 lirc (0.9.4c-0.4) unstable; urgency=low
 
   * Non-maintainer upload
@@ -30,7 +37,6 @@ lirc (0.9.4c-0.1) experimental; urgency=medium
   * New upstream release 0.9.4c
 
  -- Alec Leamas  <leamas.alec@gmail.com>  Sat, 22 Oct 2016 11:14:25 +0100
-
 lirc (0.9.4b-0.1) experimental; urgency=medium
 
   * Non-maintainer upload.

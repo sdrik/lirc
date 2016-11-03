@@ -10,8 +10,8 @@ DEBIAN_REL     = $(shell echo $(VERSION_REL) | sed 's/.*-//')
 
 UPSTREAM_SRC   = $(shell cd sources; git ls-files | sed 's|^|sources/|')
 UPSTREAM_GZ    = sources/lirc-$(PKG_VERSION).tar.gz
-DEBIAN_SRC     = $(shell find debian -type f) \
-                 debian/NEWS debian/changelog debian/control
+DEBIAN_SRC     = $(shell find debian -type f)
+
 DEBIAN_GZ      = lirc-debian-src-$(DEBIAN_VERSION)-$(DEBIAN_REL).tar.gz
 SRCDIR         = lirc-debian-src-$(DEBIAN_VERSION)
 UBUNTU_DEVS    = Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
@@ -20,7 +20,7 @@ DEBIAN_DEVS    = lirc Maintainer Team <pkg-lirc-maint@lists.alioth.debian.org>
 
 all:	sid
 
-sid stretch jessie trusty xenial: $(DEBIAN_SRC) .phony
+sid: $(DEBIAN_SRC) .phony
 	$(MAKE) debian
 
 # If upstream isn't configured version isn't available => build upstream

@@ -3,11 +3,11 @@ Source: lirc
 Section: utils
 Priority: extra
 Homepage: http://sf.net/p/lirc
-Maintainer: lirc Maintainer Team <pkg-lirc-maint@lists.alioth.debian.org>
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Uploaders:
   Stefan Lippers-Hollmann <s.l-h@gmx.de>,
-  Alec leamas <leamas.alec@gmail.com>
-Vcs-Git: git://git.code.sf.net/p/lirc/git -b debian
+  Alec Leamas <leamas.alec@gmail.com>
+Vcs-Git: git://git.code.sf.net/p/lirc/git -b ubuntu
 Vcs-Browser: https://sourceforge.net/p/lirc/git/ci/debian/tree/
 Build-Depends:
  debhelper (>= 9),
@@ -77,6 +77,7 @@ Description: Infra-red remote control support - website and manual docs
 
 Package: liblirc0
 Architecture: any
+Multi-Arch: same
 Section: libs
 Replaces:
  lirc (<< 0.9.1)
@@ -86,7 +87,6 @@ Depends:
  lsb-base
 Breaks:
  lirc (<< 0.9.1)
-Multi-Arch: same
 Description: Infra-red remote control support - Run-time libraries
  LIRC stands for 'Linux Infra-red Remote Control'.
  .
@@ -115,6 +115,7 @@ Description: Transitional placeholder for obsoleted liblircclient-dev
 
 Package: liblirc-dev
 Architecture: any
+Multi-Arch: same
 Section: libdevel
 Provides: liblircclient-dev
 Conflicts: liblircclient-dev (<< 0.9.1)
