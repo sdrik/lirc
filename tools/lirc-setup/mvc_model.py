@@ -11,8 +11,8 @@ import tempfile
 import urllib.error          # pylint: disable=no-name-in-module,F0401,E0611
 import urllib.request        # pylint: disable=no-name-in-module,F0401,E0611
 
-from database import Database
-from database import Config
+from lirc.database import Database
+from lirc.database import Config
 import config
 import util
 

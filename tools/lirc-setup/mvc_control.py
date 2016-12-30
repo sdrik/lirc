@@ -1,4 +1,8 @@
 ''' Simple lirc setup tool - control part. '''
+
+# pylint: disable=wrong-import-position
+# pylint: disable=wrong-import-order
+
 import gi
 gi.require_version('Gtk', '3.0')
 
