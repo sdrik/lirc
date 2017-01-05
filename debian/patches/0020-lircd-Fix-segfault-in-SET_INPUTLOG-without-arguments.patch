@@ -1,0 +1,41 @@
+From f105ffaec389c7765549cac834aaed144cdebdc8 Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Tue, 3 Jan 2017 17:26:31 +0100
+Subject: [PATCH 20/21] lircd: Fix segfault in SET_INPUTLOG without arguments
+ (#252).
+
+---
+ daemons/lircd.cpp | 16 ++++++++++------
+ 1 file changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/daemons/lircd.cpp b/daemons/lircd.cpp
+index 4e9162a..64cbc0c 100644
+--- a/daemons/lircd.cpp
++++ b/daemons/lircd.cpp
+@@ -1687,13 +1687,17 @@ static int set_inputlog(int fd, char* message, char* arguments)
+ 	FILE* f;
+ 	int r;
+ 
+-	r = sscanf(arguments, "%128s", buff);
+-	if (r != 1) {
+-		return send_error(fd, message,
+-				  "Illegal argument (protocol error): %s",
+-				  arguments);
++	if (arguments) {
++		r = sscanf(arguments, "%128s", buff);
++		if (r != 1) {
++			return send_error(
++				fd, message,
++				"Illegal argument (protocol error): %s",
++				arguments
++			);
++		}
+ 	}
+-	if (strcasecmp(buff, "null") == 0) {
++	if (!arguments || strcasecmp(buff, "null") == 0) {
+ 		rec_buffer_set_logfile(NULL);
+ 		return send_success(fd, message);
+ 	}
+-- 
+2.7.4
+

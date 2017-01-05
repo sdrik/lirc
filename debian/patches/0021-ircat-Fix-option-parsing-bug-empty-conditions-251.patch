@@ -1,0 +1,66 @@
+From 7c3caa5b02e6907d44d9d04fe0dfc93974b5d32c Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Mon, 2 Jan 2017 18:43:14 +0100
+Subject: [PATCH 21/21] ircat: Fix option parsing bug + empty conditions
+ (#251).
+
+The --command/-c option was not parsed correctly, despite that
+it seemed to work. lirc_code2char is not guarenteed to return
+NULL if there is no more data, it could just be empty.
+---
+ tools/ircat.cpp | 16 ++++++++++------
+ 1 file changed, 10 insertions(+), 6 deletions(-)
+
+diff --git a/tools/ircat.cpp b/tools/ircat.cpp
+index 8d93f9b..b41dece 100644
+--- a/tools/ircat.cpp
++++ b/tools/ircat.cpp
+@@ -58,6 +58,7 @@ int main(int argc, char* argv[])
+ {
+ 	struct lirc_config* config;
+ 	char* config_file = NULL;
++	int r;
+ 
+ 	while (1) {
+ 		int c;
+@@ -67,7 +68,7 @@ int main(int argc, char* argv[])
+ 			{ "version", no_argument,	NULL, 'v' },
+ 			{ 0,	     0,			0,    0	  }
+ 		};
+-		c = getopt_long(argc, argv, "chv", long_options, NULL);
++		c = getopt_long(argc, argv, "c:hv", long_options, NULL);
+ 		if (c == -1)
+ 			break;
+ 		switch (c) {
+@@ -94,20 +95,23 @@ int main(int argc, char* argv[])
+ 	if (lirc_init(argv[argc - 1], 1) == -1)
+ 		exit(EXIT_FAILURE);
+ 
+-	if (lirc_readconfig(config_file, &config, NULL) == 0) {
++	r = lirc_readconfig(config_file, &config, NULL);
++	if (r == 0) {
+ 		char* code;
+ 		char* c;
+-		int ret;
++		int r;
+ 
+ 		while (lirc_nextcode(&code) == 0) {
+-			if (code == NULL)
++			if (code == NULL || !*code)
+ 				continue;
+-			while ((ret = lirc_code2char(config, code, &c)) == 0 && c != NULL) {
++			while ((r = lirc_code2char(config, code, &c)) == 0) {
++				if (c == NULL || !*c)
++					break;
+ 				printf("%s\n", c);
+ 				fflush(stdout);
+ 			}
+ 			free(code);
+-			if (ret == -1)
++			if (r == -1)
+ 				break;
+ 		}
+ 		lirc_freeconfig(config);
+-- 
+2.7.4
+

@@ -4,7 +4,7 @@ set -e
 
 systemd-tmpfiles --create /usr/lib/tmpfiles.d/lirc.conf || :
 
-for f in lircd.conf lircmd.conf irexec.lircrc; do
+for f in lircd.conf lircmd.conf irexec.lircrc lirc_options.conf; do
     test -e /etc/lirc/$f || cp /etc/lirc/${f}.dist /etc/lirc/$f || :
 done
 

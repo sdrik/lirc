@@ -1,0 +1,29 @@
+From a6984f0249dbe5ec265af2df547526c2255bcf5c Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Wed, 7 Dec 2016 18:21:25 +0100
+Subject: [PATCH] slusk
+
+---
+ systemd/lircd-setup.service | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+ create mode 100644 systemd/lircd-setup.service
+
+diff --git a/systemd/lircd-setup.service b/systemd/lircd-setup.service
+new file mode 100644
+index 0000000..d448229
+--- /dev/null
++++ b/systemd/lircd-setup.service
+@@ -0,0 +1,10 @@
++[Unit]
++Documentation=man:lircd-setup(8)
++Description=lircd(8) initialization helper tool
++
++[Service]
++Type=oneshot
++ExecStart=/usr/sbin/lircd-setup
++
++[Install]
++WantedBy=multi-user.target
+-- 
+2.5.5
+

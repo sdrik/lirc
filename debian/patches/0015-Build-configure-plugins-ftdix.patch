@@ -1,0 +1,76 @@
+From 26e152f768bd0cf99a67e19beeb95fff02a3a3b3 Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Wed, 9 Nov 2016 13:04:56 +0100
+Subject: [PATCH] Build: configure plugins/ftdix.
+
+---
+ configure.ac    |  9 ++++++---
+ plugins/ftdix.c | 11 +++++------
+ 2 files changed, 11 insertions(+), 9 deletions(-)
+
+--- a/configure.ac
++++ b/configure.ac
+@@ -52,7 +52,7 @@
+ AC_HEADER_TIME
+ AC_CHECK_HEADERS([fcntl.h limits.h linux/ioctl.h poll.h sys/ioctl.h \
+ 		  sys/poll.h sys/time.h syslog.h unistd.h util.h \
+-		  libutil.h pty.h])
++		  linux/sched.h libutil.h pty.h])
+ 
+ dnl Checks for typedefs, structures, and compiler characteristics.
+ AC_C_CONST
+@@ -195,6 +195,9 @@
+ AH_TEMPLATE([HAVE_SYS_POLL_H],
+         [defined  if sys/poll.h is available])
+ 
++AH_TEMPLATE([HAVE_LINUX_SCHED_H],
++        [defined  if linux/sched.h is available])
++
+ AH_TEMPLATE([HAVE_SCSI],
+         [defined if SCSI API is available])
+ 
+--- a/plugins/ftdix.c
++++ b/plugins/ftdix.c
+@@ -58,8 +58,7 @@
+ 
+ #include <ftdi.h>
+ 
+-#define LIRC_FTDIX_SET_SCHEDULER 1
+-#ifdef LIRC_FTDIX_SET_SCHEDULER
++#ifdef HAVE_LINUX_SCHED_H
+ #include <sched.h>
+ #include <linux/sched.h>
+ #endif
+@@ -700,7 +699,7 @@
+ 
+ static void sched_enable_realtime(int* orig_scheduler)
+ {
+-#ifdef LIRC_FTDIX_SET_SCHEDULER
++#ifdef HAVE_LINUX_SCHED_H
+ 	*orig_scheduler = sched_getscheduler(0);
+ 	if (*orig_scheduler == -1) {
+ 		log_warn("Failed to get current scheduling policy with error "
+@@ -727,12 +726,12 @@
+ 	}
+ #else
+ 	*orig_scheduler = -1;
+-#endif /* LIRC_FTDIX_SET_SCHEDULER */
++#endif /* HAVE_LINUX_SCHED_H */
+ }
+ 
+ static void sched_restore(int* orig_scheduler)
+ {
+-#ifdef LIRC_FTDIX_SET_SCHEDULER
++#ifdef HAVE_LINUX_SCHED_H
+ 	if (*orig_scheduler == -1)
+ 		return;
+ 
+@@ -745,7 +744,7 @@
+ 	}
+ #else
+ 	*orig_scheduler = -1;
+-#endif /* LIRC_FTDIX_SET_SCHEDULER */
++#endif /* HAVE_LINUX_SCHED_H */
+ }
+ 
+ 

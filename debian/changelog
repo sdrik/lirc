@@ -1,7 +1,29 @@
+lirc (0.9.4c-7) unstable; urgency=medium
+
+  * Fix lirc_options.conf upgrade regression in 0.9.4c-6
+  * Actually add the hurd build patch missing in 0.9.4c-6
+  * Fix segfault on SET_INPUTLOG socket command (upstream #252).
+  * Fix bad handling of ircat --config options (upstream #251).
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Thu, 05 Jan 2017 00:05:35 +0100
+
+lirc (0.9.4c-6) unstable; urgency=medium
+
+  * Fix unsecure permissions for /run/lirc. Closes: #848135
+  * Fix missing config.h header (Upstream #250).
+  * Fix HURD build (Closes: #845499)
+    - Fix from Samuel Thibault
+  * Add missing Suggests: for lirc-compat-remotes.
+  * Fix --listen option parsing bug (upstream #249).
+  * Fix bad update handling of lirc_options.conf (see: #849266).
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Tue, 20 Dec 2016 12:36:19 +0100
+
 lirc (0.9.4c-5) unstable; urgency=medium
 
   * Team upload.
   * Updated README.debian, new package lirc-compat-remotes info.
+  * Added patch for missing lircd-setup.service file.
   * Removed work-around for nowadays fixed  #801719.
   * Added fix for remove --purge not purging all files.
   * lirc-old2new fixes for default device.

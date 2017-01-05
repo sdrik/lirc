@@ -29,13 +29,13 @@ override_dh_auto_install:
 	find debian/tmp -name *.la -delete
 ifeq ($(DEB_BUILD_ARCH_OS), linux)
 	mkdir -p debian/tmp/usr/lib/tmpfiles.d
-	echo "d /var/run/lirc  0777  root  root  10d" \
+	echo "d /var/run/lirc  0755  root  root  10d" \
 	    > debian/tmp/usr/lib/tmpfiles.d/lirc.conf
 endif
 	# Temporary postinstall 0.9.4 script.
 	cp debian/lirc-old2new debian/tmp/usr/share/lirc
 	# Don't overwrite existing config files.
-	for f in lircd.conf lircmd.conf irexec.lircrc; do \
+	for f in lircd.conf lircmd.conf irexec.lircrc lirc_options.conf; do \
 	    mv debian/tmp/etc/lirc/$$f debian/tmp/etc/lirc/$$f.dist; \
 	done
 

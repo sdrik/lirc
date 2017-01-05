@@ -10,4 +10,11 @@
 0013-Build-Don-t-generate-linux-files-on-non-linux-hosts-.patch
 0014-Build-Don-t-use-pkg-config-for-libusb-freebsd-buildf.patch
 0015-Build-configure-plugins-ftdix.patch
+0016-systemd-Add-missing-lircd-setup.service-to-distribut.patch
+0017-Actually-add-lircd-setup.service.patch
+0018-lircd-Fix-listen-option-parsing-249.patch
+0019-build-Include-config.h-in-installed-headers-250.patch
+0020-lircd-Fix-segfault-in-SET_INPUTLOG-without-arguments.patch
+0021-ircat-Fix-option-parsing-bug-empty-conditions-251.patch
+0030-hurd-845499.patch
 Add-hotplug-start-udev-from.0.9.0.patch
