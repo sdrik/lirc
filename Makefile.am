@@ -53,9 +53,10 @@ endif
 
 dist_doc_DATA           = VERSION
 
+nodist_pkgdata_DATA     = $(PYTHON_TARBALL)
+
 pkgconfigdir            = $(libdir)/pkgconfig
 dist_pkgconfig_DATA     = lirc.pc lirc-driver.pc
-nodist_pkgconfig_DATA   = $(PYTHON_TARBALL)
 
 headerdir               = $(includedir)/lirc
 nobase_header_HEADERS   = include/media/lirc.h
