@@ -86,7 +86,7 @@ py_LTLIBRARIES          = python-pkg/lirc/_client.la
 python_pkg_lirc__client_la_SOURCES = \
                           python-pkg/lirc/_client.c
 python_pkg_lirc__client_la_CPPFLAGS = \
-                          $(PYTHON_CFLAGS) $(AM_CPPFLAGS)
+                          $(PYTHON_CFLAGS) $(AM_CPPFLAGS) -I$(abs_srcdir)/lib
 python_pkg_lirc__client_la_LDFLAGS  = \
                           -module -avoid-version -export-symbols-regex client \
                           $(PYTHON_LIBS)
@@ -136,6 +136,8 @@ $(abs_builddir)/python-pkg/setup.py:
 
 $(PYTHON_TARBALL): $(abs_builddir)/python-pkg/setup.py
 	cp $(top_srcdir)/VERSION $(abs_builddir)/python-pkg
+	test $(top_srcdir) == $(top_builddir) || \
+	    cp $(top_srcdir)/lirc.pc $(top_builddir)
 	cd $(abs_builddir)/python-pkg; python3 setup.py -q sdist
 
 python-pkg/lirc/config.py: Makefile  $(abs_builddir)/python-pkg/setup.py

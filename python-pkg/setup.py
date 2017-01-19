@@ -6,9 +6,15 @@ import subprocess
 
 from setuptools import setup, find_packages, Extension
 
-flags =  subprocess.check_output(
-    ["pkg-config", "--cflags",  "--libs", "lirc"]
-).decode("ascii").strip().split()
+try:
+    flags =  subprocess.check_output(
+        ["pkg-config", "--cflags",  "--libs", "lirc"]
+    ).decode("ascii").strip().split()
+except  subprocess.CalledProcessError:
+    # No global installation, let's try the development tree.
+    flags =  subprocess.check_output(
+        ["pkg-config", "--cflags",  "--libs", "../lirc.pc"]
+    ).decode("ascii").strip().split()
 
 c_module = Extension('_client',
                      sources=['lirc/_client.c'],
