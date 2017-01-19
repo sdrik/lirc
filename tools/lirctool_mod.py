@@ -53,69 +53,89 @@ _DEFAULT_PORT = 8765
 def _parse_commandline():
     ''' Parse the command line, returns a filled-in  parser. '''
     # pylint: disable=bad-continuation
-    parser = argparse.ArgumentParser(prog='irtool',
+    parser = argparse.ArgumentParser(
+        prog='irtool',
         description="Tool to send IR codes and manipulate lircd(8)")
-    parser.add_argument("-a", "--address",
+    parser.add_argument(
+        "-a", "--address",
         help='lircd host IP name or address, overrides --device.',
         metavar="host", dest='address', default=None)
     path = client.get_default_socket_path()
-    parser.add_argument('-d', '--device',
+    parser.add_argument(
+        '-d', '--device',
         help='lircd socket path [%s]' % path, metavar="path",
         dest='socket_pathname', default=None)
-    parser.add_argument('-p', '--port',
+    parser.add_argument(
+        '-p', '--port',
         help='lircd IP port, use with --address [%d] ' % _DEFAULT_PORT,
         dest='port', default=_DEFAULT_PORT, type=int)
-    parser.add_argument('-t', '--timeout',
+    parser.add_argument(
+        '-t', '--timeout',
         help='Timeout in milliseconds [No timeout]', metavar="ms",
         dest='timeout', type=int, default=None)
-    parser.add_argument('-V', '--version',
+    parser.add_argument(
+        '-V', '--version',
         help='Display version information for irtool',
         dest='versionRequested', action='store_true')
-    parser.add_argument('-v', '--verbose',
+    parser.add_argument(
+        '-v', '--verbose',
         help='Have some commands executed verbosely',
         dest='verbose', action='store_true')
-    subparsers = parser.add_subparsers(dest='subcommand',
+    subparsers = parser.add_subparsers(
+        dest='subcommand',
         metavar='sub-commands')
 
     # Command send_once
-    parser_send_once = subparsers.add_parser('send-once',
+    parser_send_once = subparsers.add_parser(
+        'send-once',
         help='Send one command')
-    parser_send_once.add_argument('-#', '-c', '--count',
+    parser_send_once.add_argument(
+        '-#', '-c', '--count',
         help='Number of times to send command in send_once',
         dest='count', type=int, default=1)
     parser_send_once.add_argument('remote', help='Name of remote')
     parser_send_once.add_argument('command', help='Name of command')
 
     # Command send_start
-    parser_send_start = subparsers.add_parser('send-start',
+    parser_send_start = subparsers.add_parser(
+        'send-start',
         help='Start sending one command until stopped')
-    parser_send_start.add_argument('remote',
+    parser_send_start.add_argument(
+        'remote',
         help='Name of remote')
-    parser_send_start.add_argument('command',
+    parser_send_start.add_argument(
+        'command',
         help='Name of command')
 
     # Command send_stop
-    parser_send_stop = subparsers.add_parser('send-stop',
+    parser_send_stop = subparsers.add_parser(
+        'send-stop',
         help='Stop sending the command from send_start')
-    parser_send_stop.add_argument('remote',
+    parser_send_stop.add_argument(
+        'remote',
         help='remote command')
-    parser_send_stop.add_argument('command',
+    parser_send_stop.add_argument(
+        'command',
         help='remote command')
 
     # Command list-remotes
     subparsers.add_parser('list-remotes', help='List available remotes')
 
     # Command list-keys
-    parser_list_keys = subparsers.add_parser('list-keys',
+    parser_list_keys = subparsers.add_parser(
+        'list-keys',
         help='list defined keys in given remote')
-    parser_list_keys.add_argument('remote',
+    parser_list_keys.add_argument(
+        'remote',
         help='Name of remote')
-    parser_list_keys.add_argument("-c", "--codes",
+    parser_list_keys.add_argument(
+        "-c", "--codes",
         help='List the numerical codes in lircd.conf, not just names',
         dest='codes', action='store_true')
 
     # Command driver-option
-    parser_drv_option = subparsers.add_parser('driver-option',
+    parser_drv_option = subparsers.add_parser(
+        'driver-option',
         help='Set driver option to given value')
     parser_drv_option.add_argument('option', help='Option name')
     parser_drv_option.add_argument('value', help='Option value')
@@ -123,11 +143,14 @@ def _parse_commandline():
     # Command set_input_logging
     parser_set_input_log =  \
         subparsers.add_parser('set-inputlog', help='Set input logging')
-    parser_set_input_log.add_argument('log_file', nargs='?',
+    parser_set_input_log.add_argument(
+        'log_file', nargs='?',
         help='Path to log file, empty to inhibit logging', default='')
 
     # Command set_driver_options
-    parser_set_driver_options = subparsers.add_parser('set-driver-options',
+    parser_set_driver_options = subparsers.add_parser(
+
+        'set-driver-options',
         help='Set driver options')
     parser_set_driver_options.add_argument('key', help='Option name')
     parser_set_driver_options.add_argument('value', help='Option value')
@@ -136,19 +159,25 @@ def _parse_commandline():
     subparsers.add_parser('version', help='Get lircd version')
 
     # Command simulate
-    parser_simulate = subparsers.add_parser('simulate',
+    parser_simulate = subparsers.add_parser(
+        'simulate',
         help='Fake the reception of IR signals')
-    parser_simulate.add_argument('remote',
+    parser_simulate.add_argument(
+        'remote',
         help='remote part of simulated event')
-    parser_simulate.add_argument('key',
+    parser_simulate.add_argument(
+        'key',
         help='Name of command to be faked')
-    parser_simulate.add_argument('data',
+    parser_simulate.add_argument(
+        'data',
         help='Key press data to be sent to the Lircd')
 
     # Command set_transmitters
-    parser_set_transmitters = subparsers.add_parser('set-transmitters',
+    parser_set_transmitters = subparsers.add_parser(
+        'set-transmitters',
         help='Set transmitters')
-    parser_set_transmitters.add_argument('transmitters',
+    parser_set_transmitters.add_argument(
+        'transmitters',
         metavar='N', nargs='+', help="transmitter...")
 
     args = parser.parse_args()
