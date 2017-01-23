@@ -1,3 +1,11 @@
+lirc (0.9.4d-0.1) unstable; urgency=medium
+
+  * Non-maintainer upload
+  * New upstream version
+  * Most patches in 0.9.4c-0.5 upstreamed
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Mon, 23 Jan 2017 10:51:22 +0100
+
 lirc (0.9.4c-0.5) unstable; urgency=medium
 
   * Non-maintainer upload

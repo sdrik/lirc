@@ -1,9 +1,9 @@
-Standards-Version: 3.9.8
+Standards-Version: 3.9.6
 Source: lirc
 Section: utils
 Priority: extra
 Homepage: http://sf.net/p/lirc
-Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Maintainer: Ubuntu Developers <ubuntu-devel@lists.ubuntu.com>
 Uploaders:
   Stefan Lippers-Hollmann <s.l-h@gmx.de>,
   Alec Leamas <leamas.alec@gmail.com>

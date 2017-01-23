@@ -1,9 +1,3 @@
 0001-lirc.org-Remove-non-free-advertising.patch
-0002-lib-curl_poll.h-Ensure-build-on-unconfiguredclients.patch
-0003-plugin-girs-Fix-default-device-typo.patch
-0005-lirc.pc-Fix-bad-library-specification-236.patch
-0006-Build-Use-HAVE_UINPUT-1-to-force-building-uinput-cod.patch
 0007-tools-remove-configs-symlink.patch
-0008-systemd-Fix-wrong-path-to-irexec-239.patch
-0010-lib-Only-use-local-headers-in-lirc_private.h-237.patch
 Add-hotplug-start-udev-from.0.9.0.patch
