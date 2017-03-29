@@ -1,11 +1,12 @@
 %global _hardened_build 1
+%global __python %{__python3}
 
 %global released 1
 #define tag     devel
 
 Name:           lirc
-Version:        0.9.4b
-Release:        %{?tag:0.}2%{?tag:.}%{?tag}%{?dist}
+Version:        0.9.4d
+Release:        %{?tag:0.}1%{?tag:.}%{?tag}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
 %global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}/
@@ -17,11 +18,8 @@ URL:            http://www.lirc.org/
 Source0:        %{?released:%{repo}}%{name}-%{version}%{?tag:-}%{?tag}.tar.gz
 Source1:        README.fedora
 Source2:        99-remote-control-lirc.rules
-                # Config only, cannot be upstreamed.
-Patch1:         0004-plugins-audio_alsa-Fix-byte-truncating-in-16-bit-dat.patch
-Patch2:         0005-contrib-Fix-usb-devices-acl-permissions-rhbz-1364744.patch
-Patch3:         0006-include-Update-bundled-lirc.h.patch
-Patch4:         0007-lircd-Remove-use-of-functions-killed-in-kernel-4.8.0.patch
+Patch1:         0001-doc-Fix-FTBS-bug-on-hosts-without-installed-lirc.patch
+
 
 BuildRequires:  alsa-lib-devel
 Buildrequires:  autoconf
@@ -184,34 +182,27 @@ full support for the ftdi device.
 
 
 %prep
-%setup -qn %{name}-%{version}%{?tag}
-%patch1 -p1
-%patch2 -p1
-
-%if 0%fedora > 24
-%patch3 -p1
-%patch4 -p1
-cp lib/driver.h lib/lirc/driver.h
-%endif
-
-sed -i -e 's|/usr/local/etc/|/etc/|' contrib/irman2lirc
+%autosetup -p1 -n %{name}-%{version}%{?tag:-}%{?tag}
 sed -i -e 's/#effective-user/effective-user /' lirc_options.conf
 sed -i -e '/^effective-user/s/=$/= lirc/' lirc_options.conf
+sed -i -e 's|/usr/local/etc/|/etc/|' contrib/irman2lirc
 
 
 %build
 autoreconf -fi
 
-CFLAGS="%{optflags}" %configure --libdir=%{_libdir}
-make %{?_smp_mflags}
+CFLAGS="%{optflags}" \
+HAVE_UINPUT=1 \
+%configure --libdir=%{_libdir} HAVE_UINPUT=1
+make V=0 %{?_smp_mflags}
 
 %install
-make install DESTDIR=$RPM_BUILD_ROOT
+make -s V=0 LIBTOOLFLAGS="--silent -Wnone" DESTDIR=$RPM_BUILD_ROOT install
 cd $RPM_BUILD_ROOT%{_datadir}/lirc/contrib
 chmod 755 irman2lirc
 cd $OLDPWD
-rm $RPM_BUILD_ROOT%{_libdir}/*.la
-rm $RPM_BUILD_ROOT%{_libdir}/lirc/plugins/*.la
+find $RPM_BUILD_ROOT%{_libdir}/ -name \*.la -delete
+find $RPM_BUILD_ROOT -name lirc.4l\* -delete
 
 install -pm 755 contrib/irman2lirc $RPM_BUILD_ROOT%{_bindir}
 install -Dpm 644 doc/lirc.hwdb $RPM_BUILD_ROOT%{_datadir}/lirc/lirc.hwdb
@@ -276,13 +267,11 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_mandir}/man1/lirc-config-tool*
 %{_mandir}/man1/lirc-setup*
 %{_datadir}/lirc/configs/*
-%{python3_sitelib}/lirc
 %exclude %{_datadir}/lirc/configs/ftdi.conf
 %exclude %{_datadir}/lirc/configs/audio.conf
 
 
 %files core
-%license COPYING
 %doc README AUTHORS NEWS README.fedora
 %dir  /etc/lirc
 /etc/lirc/lircd.conf.d
@@ -303,6 +292,9 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_libdir}/lirc/plugins
 %exclude %{_libdir}/lirc/plugins/ftdi.so
 %exclude %{_libdir}/lirc/plugins/audio.so
+%{python3_sitelib}/lirc/
+##%%{_libdir}/python%%{python3_version}/site-packages/lirc
+##%%{_libdir}/python%%{python3_version}/site-packages/lirc-setup
 %{_datadir}/lirc/
 /var/lib/lirc/images
 /var/lib/lirc/plugins
@@ -322,7 +314,7 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 
 
 %files libs
-#doc COPYING
+##%%license COPYING COPYING.ciniparser COPYING.curl
 %{_libdir}/libirrecord.so.*
 %{_libdir}/liblirc_client.so.*
 %{_libdir}/liblirc_driver.so.*
@@ -341,13 +333,51 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_libdir}/pkgconfig/lirc.pc
 
 %files doc
-%doc COPYING ChangeLog
+##%%license COPYING COPYING.ciniparser COPYING.curl
+%doc ChangeLog
 %{_pkgdocdir}
 
 %files disable-kernel-rc
 %{_udevrulesdir}/99-remote-control-lirc.rules
 
 %changelog
+* Mon Jan 23 2017 Alec Leamas <leamas.alec@gmail.com> - 0.9.4d-1
+- New upstream version
+- Most patches upstreamed
+
+* Wed Jan 04 2017 Alec Leamas <leamas.alec@gmail.com> - 0.9.4c-7
+- Added upstream patch for bad ircat --config handling
+- Added upstream patch for lircd SET_INPUTLOG segfault
+- Added upstream patch for FTBS on clients building against lirc
+
+* Fri Dec 23 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4c-6
+- Add patch for --listen parsing bug (upstream #249).
+
+* Wed Dec 07 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4c-5
+- Added missing lircd-setup.service file.
+
+* Sun Oct 30 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4c-4
+- Added upstream patches (10)
+
+* Sat Oct 22 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4c-3
+- Add fix for header file curl_poll.h, fixing clients FTBS errors.
+
+* Fri Oct 21 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4c-2
+- Rebuilt
+
+* Fri Oct 21 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4c-1
+- New upstream version, patches upstreamed
+
+* Tue Aug 23 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4b-4
+- Add fixes for #221 and #222
+- Update patches, include everything from upstream
+- Add some minor fixes for lircd.org
+- Obsoletes 0.9.4b-3 which is unpushed.
+
+* Mon Aug 22 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4b-3
+- Add yet another ABRT crasher fix.
+- Update fix for #1364744.
+
 * Wed Aug 17 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4b-2
 - Added patch for audio_alsa plugin (#218).
 - Move R: python3-PyYAML to lirc-compat, fixes import error
@@ -364,16 +394,7 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 - New upstream release.
 - Fixes #1350750, bad systemd files syntax.
 
- * Thu Jun 02 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-4
- - Adding upstream patches:
-   + Fix intermittent parallel build errors.
-   + Fix bad debug comment in lirc_options.conf.
-   + Fix segfault using --connect (#195).
-   + Fix lirc.org doc errors.
-   + Fix disabled reception after send in girs.c
-   + Fix bad state after deinit() in uirt2_raw.c
-
--* Thu May 26 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-3
+* Thu May 26 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-3
 - Add fix for FTBS parallel build deps error.
 
 * Thu May 26 2016 Alec Leamas <leamas.alec@gmail.com> - 0.9.4-2
