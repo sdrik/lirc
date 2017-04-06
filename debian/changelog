@@ -1,3 +1,9 @@
+lirc (0.9.4c-8) unstable; urgency=medium
+
+  * Fix missinng deps for lirc-setup (Closes: #858144).
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Tue, 21 Mar 2017 17:50:54 +0100
+
 lirc (0.9.4c-7) unstable; urgency=medium
 
   * Fix lirc_options.conf upgrade regression in 0.9.4c-6
