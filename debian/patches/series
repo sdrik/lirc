@@ -17,4 +17,5 @@
 0020-lircd-Fix-segfault-in-SET_INPUTLOG-without-arguments.patch
 0021-ircat-Fix-option-parsing-bug-empty-conditions-251.patch
 0030-hurd-845499.patch
+0031-Handle-systemd-new-pkg-config-filename-274.patch
 Add-hotplug-start-udev-from.0.9.0.patch

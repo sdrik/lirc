@@ -1,3 +1,10 @@
+lirc (0.9.4c-9) unstable; urgency=medium
+
+  * Fix missing systemd socket activation (Closes: #859491).
+  * Fix package purge (Closes: #852118).
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Thu, 06 Apr 2017 05:23:20 +0200
+
 lirc (0.9.4c-8) unstable; urgency=medium
 
   * Fix missinng deps for lirc-setup (Closes: #858144).

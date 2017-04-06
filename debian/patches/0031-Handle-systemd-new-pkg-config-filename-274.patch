@@ -1,0 +1,42 @@
+commit 2ec5ae60b5f6141c26766783ad67ef67913a7200
+Author: Alec Leamas <leamas@nowhere.net>
+Date:   Tue Apr 4 12:49:42 2017 +0200
+
+    0031-new
+
+diff --git a/configure.ac b/configure.ac
+index 42f716e..b8dd907 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -397,6 +397,7 @@ AC_CHECK_HEADERS(linux/i2c-dev.h,[
+ 
+ 
+ PKG_CHECK_MODULES([SYSTEMD],[libsystemd-daemon],,[true])
++test -n "$SYSTEMD_LIBS" || PKG_CHECK_MODULES([SYSTEMD],[libsystemd],,[true])
+ if test -n "$SYSTEMD_LIBS"; then
+     CFLAGS="$CFLAGS $SYSTEMD_CFLAGS"
+     AC_DEFINE(HAVE_SYSTEMD)
+@@ -541,6 +542,7 @@ AC_REPORT_CONDITIONAL([DEVEL])
+ AC_REPORT_CONDITIONAL([HAVE_UINPUT])
+ AC_REPORT_CONDITIONAL([DARWIN])
+ AC_REPORT_CONDITIONAL([LINUX_KERNEL])
++AC_REPORT_CONDITIONAL([HAVE_FTDI])
+ 
+ echo
+ 
+diff --git a/daemons/lircd.cpp b/daemons/lircd.cpp
+index 69331b1..6ebc3c4 100644
+--- a/daemons/lircd.cpp
++++ b/daemons/lircd.cpp
+@@ -1036,9 +1036,11 @@ void start_server(mode_t permission, int nodaemon, loglevel_t loglevel)
+ 		goto start_server_failed0;
+ 	} else if (n == 1) {
+ 		sockfd = SD_LISTEN_FDS_START + 0;
++		log_notice("Using systemd fd");
+ 	}
+ #endif
+ 	if (sockfd == -1) {
++		log_debug("No systemd fd");
+ 		sockfd = socket(AF_UNIX, SOCK_STREAM, 0);
+ 		if (sockfd == -1) {
+ 			perror("Could not create socket");
