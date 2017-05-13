@@ -149,16 +149,19 @@ static void add_defaults(void)
 	char level[4];
 
 	snprintf(level, sizeof(level), "%d", lirc_log_defaultlevel());
-	const char* const suffix = options_getstring("lircd:release");
+	const char* const suffix = options_getstring(SUFFIX_OPT);
 	const char* const socket = options_getstring("lircd:output");
+	const char* const timeout = options_getstring(TIMEOUT_OPT);
+	const char* const release_opt = options_getstring(RELEASE_OPT);
 
 	const char* const defaults[] = {
 		DEBUG_OPT,		level,
 		LOGFILE_OPT,		"syslog",
 		UINPUT_OPT,		"/dev/uinput",
-		REPEAT_OPT,	 	(const char*) NULL,
+		REPEAT_OPT,		(const char*) NULL,
 		SUFFIX_OPT,		suffix ? suffix : "_UP",
-		TIMEOUT_OPT,		"200",
+		TIMEOUT_OPT,		timeout ? timeout : "200",
+		RELEASE_OPT,		release_opt ? release_opt : "false",
 		INPUT_ARG,		socket ? socket : LIRCD,
 		DISABLED_OPT,		(const char*)NULL,
 		(const char*)NULL,	(const char*)NULL
@@ -295,6 +298,8 @@ static void log_options(const struct options* opts)
 	if (opts->add_release_events) {
 		log_info("Adding release events after a %d ms timeout",
 			 opts->release_timeout);
+		log_info("Using \"%s\" as release suffix",
+			 opts->release_suffix);
 	}
 	if (opts->disabled_path != NULL) {
 		log_info("Disabling %d key(s)",
@@ -308,7 +313,6 @@ static void log_options(const struct options* opts)
 		log_info("Setting kernel repeat period to %d ms",
 			 opts->repeat_period);
 	}
-	log_info("Using \"%s\" as release suffix", opts->release_suffix);
 }
 
 
