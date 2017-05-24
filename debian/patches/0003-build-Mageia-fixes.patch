@@ -1,0 +1,28 @@
+From f2aa6a7788eee02a32609a075b05dbf0e327bfca Mon Sep 17 00:00:00 2001
+From: Alec leamas <al@mageia.localdomain>
+Date: Tue, 30 May 2017 11:34:32 +0200
+Subject: [PATCH 3/7] build: Mageia fixes
+
+---
+ configure.ac | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 5cb9d8d..512ed71 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -135,9 +135,8 @@ enable_uinput_default="no"
+ test -e "/dev/uinput" && enable_uinput_default="yes"
+ 
+ version_nodots=$( $PYTHON << EOF
+-v = "$VERSION".split("rc")[[0]].split("-")[[0]].split(".")
+-v = dict(enumerate(v))
+-print(int(v.get(0)) * 10000 + int(v.get(1)) * 100 + int(v.get(2)))
++v = "$VERSION".split("rc").pop(0).split("-").pop(0).split(".")
++print(int(v.pop(0)) * 10000 + int(v.pop(0)) * 100 + int(v.pop(0)))
+ EOF
+ )
+ AC_DEFINE_UNQUOTED(VERSION_NODOTS, [$version_nodots])
+-- 
+2.9.3
+

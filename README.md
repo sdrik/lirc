@@ -2,11 +2,11 @@
 
 ### General
 
-The debian packaging lives in two branches  'debian' and 'ubuntu' in the
-lirc project.  The goal is to provide modern lirc packages for debian and
-ubuntu. At the time of writing it provides 0.9.4 packages.
+The debian 0.10 packaging lives in the debian-0.10 branch. As of now,
+there are no current plans for a ubuntu release ahead of zesty,
+which tracks the debian official packages.
 
-The 'debian' branch is used for the official packaging available in
+The 'debian-0.10' branch is used for the official packaging available in
 Debian (stretch) and Ubuntu (zesty). The 'ubuntu' branch builds on
 debian (jessie) and ubuntu (trusty, xenial and yakkety).
 

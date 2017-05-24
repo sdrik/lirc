@@ -22,11 +22,13 @@ override_dh_shlibdeps:
 	dh_shlibdeps -l $(CURDIR)/debian/tmp/usr/lib/*/lirc/plugins
 
 override_dh_auto_install:
-	$(MAKE) DESTDIR=$(CURDIR)/debian/tmp \
+	$(MAKE) V=0 DESTDIR=$(CURDIR)/debian/tmp \
             pythondir='$$(libdir)/python3/dist-packages' \
 	    install
 	py3clean debian/tmp
 	find debian/tmp -name *.la -delete
+	rm -f debian/tmp/usr/share/man/man4/lirc.4l*
+	rm -f debian/tmp/usr/share/doc/lirc/lirc.org/api-docs/api-docs
 ifeq ($(DEB_BUILD_ARCH_OS), linux)
 	mkdir -p debian/tmp/usr/lib/tmpfiles.d
 	echo "d /var/run/lirc  0755  root  root  10d" \

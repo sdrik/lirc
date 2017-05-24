@@ -1,0 +1,38 @@
+From fc2b2d654238dc1573b876b5faad983340741cb4 Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Thu, 1 Jun 2017 05:04:34 +0200
+Subject: [PATCH] Build: Fix timestamps in generated tarball.
+
+The debian buildchain requires generated tarballs to have the
+same timestamps to be considered equal. So, set the timestamps
+of generated files to the git commit date.
+---
+ Makefile.am | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index 17a2ed0..f3b0f40 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -10,6 +10,7 @@ include                 pylint.mak
+ GIT_COMMIT      = $(shell git log -1 --pretty=format:%h || echo UNKNOWN)
+ GIT_DATE        = $(shell git log -1 --pretty=format:%cd || echo UNKNOWN)
+ GIT_REFS        = $(shell git log -1 --pretty=format:%d || echo UNKNOWN)
++GIT_DATE_ISO    = $(shell git log -1 --pretty=format:%ci || date +"%F %T")
+ 
+ BASE_VERSION            = $(subst -devel,,$(VERSION))
+ 
+@@ -135,8 +136,9 @@ uninstall-hook:
+ 	        $(DESTDIR)/$(pkgdatadir)/contrib
+ 
+ dist-hook: ChangeLog fix-version
++	touch -d "$(GIT_DATE_ISO)" $(distdir)/lib/lirc/* VERSION
+ 	cp -pr $(srcdir)/contrib $(distdir)
+-	cp $(distdir)/VERSION $(distdir)/python-pkg/VERSION
++	cp -a $(distdir)/VERSION $(distdir)/python-pkg/VERSION
+ 
+ clean-local:
+ 	rm -rf python-pkg/dist python-pkg/lirc.egg-info python-pgk/VERSION
+-- 
+2.9.3
+

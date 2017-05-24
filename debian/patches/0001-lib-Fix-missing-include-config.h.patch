@@ -1,0 +1,27 @@
+From 95818bd6eb802f64cb55a58012d9e620e5c0b1fb Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Mon, 29 May 2017 21:59:34 +0200
+Subject: [PATCH 1/7] lib: Fix missing #include config.h
+
+---
+ lib/curl_poll.h | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/lib/curl_poll.h b/lib/curl_poll.h
+index c881385..8791394 100644
+--- a/lib/curl_poll.h
++++ b/lib/curl_poll.h
+@@ -31,6 +31,10 @@
+ extern "C" {
+ #endif
+ 
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#endif
++
+ #ifdef HAVE_SYS_POLL_H
+ #include <sys/poll.h>
+ #else
+-- 
+2.9.3
+
