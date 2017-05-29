@@ -1,16 +1,22 @@
 %global _hardened_build 1
 %global __python %{__python3}
 
-%if 0%{?fedora} > 24
-%global  Wnone  -Wnone
-%endif
-
 %global released 1
 #define tag     devel
 
+%{?configure2_5x:%global configure %configure2_5x}
+
+%if (0%{?fedora} > 24 || 0%{?mageia} > 5)
+%global         Wnone  -Wnone
+%endif
+
+%if 0%{?mageia} > 1
+%global         _pkgdocdir %{_defaultdocdir}
+%endif
+
 Name:           lirc
 Version:        0.10.0rc1
-Release:        0.2%{?tag:.}%{?tag}%{?dist}
+Release:        0.5%{?tag:.}%{?tag}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
 %global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}/
@@ -22,7 +28,13 @@ URL:            http://www.lirc.org/
 Source0:        %{?released:%{repo}}%{name}-%{version}%{?tag:-}%{?tag}.tar.gz
 Source2:        99-remote-control-lirc.rules
 
-Patch1:         0001-build-Reconfigure-also-lib-config.h.patch
+Patch1:         0001-lib-Fix-missing-include-config.h.patch
+Patch2:         0002-build-Let-configure-update-also-lib-lirc-config.h.patch
+Patch3:         0003-build-mageia-fixes.patch
+Patch4:         0004-doc-Deprecate-lirc.hwdb-NEWS-update.patch
+Patch5:         0005-doc-Mute-annoying-build-error-message.patch
+Patch6:         0006-Build-Use-correct-python-interpreter.patch
+Patch7:         0007-Build-linking-issue.patch
 
 
 BuildRequires:  alsa-lib-devel
@@ -34,10 +46,18 @@ BuildRequires:  kernel-headers
 BuildRequires:  man2html
 BuildRequires:  libftdi-devel
 BuildRequires:  libtool
-BuildRequires:  libusb-devel
 BuildRequires:  libusb1-devel
+%if 0%{?mageia} > 4
+BuildRequires:  libxslt-devel
+BuildRequires:  libusb0.1-devel
+BuildRequires:  libxt-devel
+BuildRequires:  locales
+BuildRequires:  xsltproc
+%else
+BuildRequires:  libusb-devel
 BuildRequires:  libxslt
 BuildRequires:  libXt-devel
+%endif
 BuildRequires:  portaudio-devel
 BuildRequires:  python%{python3_pkgversion}-devel
 BuildRequires:  python%{python3_pkgversion}-PyYAML
@@ -191,25 +211,20 @@ sed -i -e 's/#effective-user/effective-user /' lirc_options.conf
 sed -i -e '/^effective-user/s/=$/= lirc/' lirc_options.conf
 sed -i -e 's|/usr/local/etc/|/etc/|' contrib/irman2lirc
 
-
 %build
 autoreconf -fi
 
-CFLAGS="%{optflags}" \
-LANG="C" \
-%configure --docdir="%{_pkgdocdir}" \
-           --enable-uinput \
-           --enable-devinput
-make LANG=C V=0 %{?_smp_mflags}
+%configure \
+        --docdir="%{_pkgdocdir}" \
+        --enable-uinput \
+        --enable-devinput
+make LANG=C.utf8 V=0 %{?_smp_mflags}
 
 %install
 make -s V=0 LIBTOOLFLAGS="--silent %{?Wnone}" DESTDIR=$RPM_BUILD_ROOT install
 
-cd $RPM_BUILD_ROOT%{_datadir}/lirc/contrib
-chmod 755 irman2lirc
-cd $OLDPWD
+chmod 755 $RPM_BUILD_ROOT%{_datadir}/lirc/contrib/irman2lirc
 find $RPM_BUILD_ROOT%{_libdir}/ -name \*.la -delete
-find $RPM_BUILD_ROOT -name lirc.4l\* -delete
 
 install -pm 755 contrib/irman2lirc $RPM_BUILD_ROOT%{_bindir}
 install -Dpm 644 doc/lirc.hwdb $RPM_BUILD_ROOT%{_datadir}/lirc/lirc.hwdb
@@ -243,7 +258,6 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %postun core
 %systemd_postun_with_restart lircd.service lircmd.service
 
-
 %post libs -p /sbin/ldconfig
 
 %postun libs -p /sbin/ldconfig
@@ -275,7 +289,6 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_datadir}/lirc/configs/*
 %exclude %{_datadir}/lirc/configs/ftdi.conf
 %exclude %{_datadir}/lirc/configs/audio.conf
-
 
 %files core
 %%doc README AUTHORS NEWS
@@ -317,9 +330,8 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %exclude %{_mandir}/man1/irxevent*
 %exclude %{_mandir}/man1/xmode2*
 
-
 %files libs
-##%%license COPYING COPYING.ciniparser COPYING.curl
+%license COPYING COPYING.ciniparser COPYING.curl
 %{_libdir}/libirrecord.so.*
 %{_libdir}/liblirc_client.so.*
 %{_libdir}/liblirc_driver.so.*
@@ -338,17 +350,31 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_libdir}/pkgconfig/lirc.pc
 
 %files doc
-##%%license COPYING COPYING.ciniparser COPYING.curl
+%license COPYING COPYING.ciniparser COPYING.curl
 %doc ChangeLog
-%{_pkgdocdir}
+%{_defaultdocdir}
 
 %files disable-kernel-rc
 %{_udevrulesdir}/99-remote-control-lirc.rules
 
+
 %changelog
+* Wed May 31 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0rc1-0.5
+- Mageia specfile cleanup and patches
+- COPR only release.
+
+* Wed May 31 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0rc1-0.4
+- Spec file clean-up
+- COPR only release.
+
+* Tue May 30 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0rc1-0.3
+- Mageia fixes.
+- COPR only release.
+
 * Mon May 29 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0rc1-0.2
 - New upstream version
 - Epel 7 fixes
+- COPR only release.
 
 * Mon Jan 23 2017 Alec Leamas <leamas.alec@gmail.com> - 0.9.4d-1
 - New upstream version

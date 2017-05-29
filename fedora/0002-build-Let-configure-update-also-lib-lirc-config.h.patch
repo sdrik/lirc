@@ -1,0 +1,24 @@
+From 41ad50f595a378c067a96814003c4a43ae30d419 Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Mon, 29 May 2017 22:08:32 +0200
+Subject: [PATCH] build: Let configure update also lib/lirc/config.h
+
+---
+ configure.ac | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/configure.ac b/configure.ac
+index 3d3c4c9..5cb9d8d 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -536,6 +536,7 @@ AC_CONFIG_FILES([
+ ])
+ AC_OUTPUT
+ cp VERSION python-pkg/VERSION
++cp config.h lib/lirc
+ 
+ AC_DEFUN([AX_REPORT_CONDITIONAL], [
+   AS_IF([test -z $$1_TRUE],[enabled="yes"],[enabled="no"])
+-- 
+2.9.3
+
