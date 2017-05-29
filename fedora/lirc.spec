@@ -1,12 +1,16 @@
 %global _hardened_build 1
 %global __python %{__python3}
 
+%if 0%{?fedora} > 24
+%global  Wnone  -Wnone
+%endif
+
 %global released 1
 #define tag     devel
 
 Name:           lirc
-Version:        0.9.4d
-Release:        %{?tag:0.}1%{?tag:.}%{?tag}%{?dist}
+Version:        0.10.0rc1
+Release:        0.2%{?tag:.}%{?tag}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
 %global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}/
@@ -16,9 +20,9 @@ Group:          System Environment/Daemons
 License:        GPLv2 and BSD
 URL:            http://www.lirc.org/
 Source0:        %{?released:%{repo}}%{name}-%{version}%{?tag:-}%{?tag}.tar.gz
-Source1:        README.fedora
 Source2:        99-remote-control-lirc.rules
-Patch1:         0001-doc-Fix-FTBS-bug-on-hosts-without-installed-lirc.patch
+
+Patch1:         0001-build-Reconfigure-also-lib-config.h.patch
 
 
 BuildRequires:  alsa-lib-devel
@@ -35,8 +39,8 @@ BuildRequires:  libusb1-devel
 BuildRequires:  libxslt
 BuildRequires:  libXt-devel
 BuildRequires:  portaudio-devel
-BuildRequires:  python3-devel
-BuildRequires:  python3-PyYAML
+BuildRequires:  python%{python3_pkgversion}-devel
+BuildRequires:  python%{python3_pkgversion}-PyYAML
 BuildRequires:  systemd-devel
 
 Requires:       %{name}-libs = %{version}-%{release}
@@ -103,7 +107,7 @@ Summary:        LIRC Configuration Tools and Data
 Requires:       lirc-core = %{version}-%{release}
 Requires:       lirc-doc = %{version}-%{release}
 Requires:       gnome-icon-theme
-Requires:       python3-PyYAML
+Requires:       python%{python3_pkgversion}-PyYAML
 BuildArch:      noarch
 
 %description    config
@@ -192,12 +196,15 @@ sed -i -e 's|/usr/local/etc/|/etc/|' contrib/irman2lirc
 autoreconf -fi
 
 CFLAGS="%{optflags}" \
-HAVE_UINPUT=1 \
-%configure --libdir=%{_libdir} HAVE_UINPUT=1
-make V=0 %{?_smp_mflags}
+LANG="C" \
+%configure --docdir="%{_pkgdocdir}" \
+           --enable-uinput \
+           --enable-devinput
+make LANG=C V=0 %{?_smp_mflags}
 
 %install
-make -s V=0 LIBTOOLFLAGS="--silent -Wnone" DESTDIR=$RPM_BUILD_ROOT install
+make -s V=0 LIBTOOLFLAGS="--silent %{?Wnone}" DESTDIR=$RPM_BUILD_ROOT install
+
 cd $RPM_BUILD_ROOT%{_datadir}/lirc/contrib
 chmod 755 irman2lirc
 cd $OLDPWD
@@ -210,7 +217,6 @@ install -Dpm 644 contrib/60-lirc.rules \
     $RPM_BUILD_ROOT%{_udevrulesdir}/60-lirc.rules
 install -Dpm 644 %{SOURCE2} \
     $RPM_BUILD_ROOT%{_udevrulesdir}/99-remote-control-lirc.rules
-cp -a %{SOURCE1} README.fedora
 
 mkdir -p $RPM_BUILD_ROOT/%{_tmpfilesdir}
 echo "d /var/run/lirc  0755  lirc  lirc  10d" \
@@ -272,7 +278,7 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 
 
 %files core
-%doc README AUTHORS NEWS README.fedora
+%%doc README AUTHORS NEWS
 %dir  /etc/lirc
 /etc/lirc/lircd.conf.d
 %config(noreplace) /etc/lirc/lirc*.conf
@@ -292,9 +298,8 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_libdir}/lirc/plugins
 %exclude %{_libdir}/lirc/plugins/ftdi.so
 %exclude %{_libdir}/lirc/plugins/audio.so
-%{python3_sitelib}/lirc/
-##%%{_libdir}/python%%{python3_version}/site-packages/lirc
-##%%{_libdir}/python%%{python3_version}/site-packages/lirc-setup
+%{_libdir}/python%{python3_version}/site-packages/lirc
+%{_libdir}/python%{python3_version}/site-packages/lirc-setup
 %{_datadir}/lirc/
 /var/lib/lirc/images
 /var/lib/lirc/plugins
@@ -341,6 +346,10 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 %{_udevrulesdir}/99-remote-control-lirc.rules
 
 %changelog
+* Mon May 29 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0rc1-0.2
+- New upstream version
+- Epel 7 fixes
+
 * Mon Jan 23 2017 Alec Leamas <leamas.alec@gmail.com> - 0.9.4d-1
 - New upstream version
 - Most patches upstreamed
