@@ -19,6 +19,7 @@ Build-Depends:
  kmod [linux-any],
  libasound2-dev [linux-any kfreebsd-any],
  libftdi1-dev,
+ libpython3-dev,
  libsystemd-dev [linux-any],
  libudev-dev [linux-any],
  libusb-1.0-0-dev [!kfreebsd-any],

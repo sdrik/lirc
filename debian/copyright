@@ -177,12 +177,6 @@ Copyright: 1999, Christoph Bartelmus <lirc@bartelmus.de>
            2001, Krister Wicksell <krister.wicksell@spray.se>
 License: GPL-2.0+
 
-Files: plugins/slinke.*
-Copyright: 1999, Christoph Bartelmus <lirc@bartelmus.de>
-           1999, Isaac Lauer <inl101@alumni.psu.edu>
-           2000, Max Spring <mspring@employees.org>
-License: GPL-2.0+
-
 Files: plugins/srm7500libusb.*
 Copyright: 2002, Oliver Endriss <o.endriss@gmx.de>
            2004, Michael Gold <mgold@scs.carleton.ca>

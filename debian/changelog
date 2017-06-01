@@ -1,4 +1,10 @@
-lirc (0.10.0-1) unstable; urgency=medium
+lirc (0.10.0~rc1-2) unstable; urgency=medium
+
+  * Packaging fixes: deps, copyright, build rules and watch file.
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Thu, 01 Jun 2017 09:46:46 +0200
+
+lirc (0.10.0~rc1-1) unstable; urgency=medium
 
   * New upstream release.
 
