@@ -3,6 +3,7 @@
 
 %global released 1
 #define tag     devel
+%global rcX     rc1
 
 %{?configure2_5x:%global configure %configure2_5x}
 
@@ -15,17 +16,18 @@
 %endif
 
 Name:           lirc
-Version:        0.10.0rc1
-Release:        0.5%{?tag:.}%{?tag}%{?dist}
+Version:        0.10.0
+Release:        0.1%{?tag:.}%{?tag}%{?rcX:.}%{?rcX}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
-%global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}/
+%global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}%{?rcX}/
+%global tarball %{name}-%{version}%{?rcX}%{?tag:-}%{?tag}.tar.gz
 
 Group:          System Environment/Daemons
                 # lib/ciniparser* and lib/dictionary* are BSD, others GPLv2
 License:        GPLv2 and BSD
 URL:            http://www.lirc.org/
-Source0:        %{?released:%{repo}}%{name}-%{version}%{?tag:-}%{?tag}.tar.gz
+Source0:        %{?released:%{repo}}%{tarball}
 Source2:        99-remote-control-lirc.rules
 
 Patch1:         0001-lib-Fix-missing-include-config.h.patch
@@ -206,7 +208,7 @@ full support for the ftdi device.
 
 
 %prep
-%autosetup -p1 -n %{name}-%{version}%{?tag:-}%{?tag}
+%autosetup -p1 -n %{name}-%{version}%{?tag:-}%{?tag}%{?rcX}
 sed -i -e 's/#effective-user/effective-user /' lirc_options.conf
 sed -i -e '/^effective-user/s/=$/= lirc/' lirc_options.conf
 sed -i -e 's|/usr/local/etc/|/etc/|' contrib/irman2lirc
@@ -359,21 +361,9 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 
 
 %changelog
-* Wed May 31 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0rc1-0.5
-- Mageia specfile cleanup and patches
-- COPR only release.
-
-* Wed May 31 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0rc1-0.4
-- Spec file clean-up
-- COPR only release.
-
-* Tue May 30 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0rc1-0.3
-- Mageia fixes.
-- COPR only release.
-
-* Mon May 29 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0rc1-0.2
+* Thu Jun 1 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0-0.1.rc1
 - New upstream version
-- Epel 7 fixes
+- Builds on epel 7 and mageia 6/cauldron
 - COPR only release.
 
 * Mon Jan 23 2017 Alec Leamas <leamas.alec@gmail.com> - 0.9.4d-1
