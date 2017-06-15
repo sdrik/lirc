@@ -1,9 +1,8 @@
 %global _hardened_build 1
 %global __python %{__python3}
 
-%global released 1
-#define tag     devel
-%global rcX     rc1
+%global released 0
+%define tag     rc2
 
 %{?configure2_5x:%global configure %configure2_5x}
 
@@ -17,33 +16,29 @@
 
 Name:           lirc
 Version:        0.10.0
-Release:        0.1%{?tag:.}%{?tag}%{?rcX:.}%{?rcX}%{?dist}
+Release:        0.6%{?tag:.}%{?tag}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
-%global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}%{?rcX}/
-%global tarball %{name}-%{version}%{?rcX}%{?tag:-}%{?tag}.tar.gz
+%global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}
+%global tarball %{name}-%{version}%{?tag:-}%{?tag}.tar.gz
 
 Group:          System Environment/Daemons
                 # lib/ciniparser* and lib/dictionary* are BSD, others GPLv2
 License:        GPLv2 and BSD
 URL:            http://www.lirc.org/
-Source0:        %{?released:%{repo}}%{tarball}
+Source0:        %{?released:%{repo}%{?tag:-}%{?tag}/}%{tarball}
 Source2:        99-remote-control-lirc.rules
 
-Patch1:         0001-lib-Fix-missing-include-config.h.patch
-Patch2:         0002-build-Let-configure-update-also-lib-lirc-config.h.patch
-Patch3:         0003-build-mageia-fixes.patch
-Patch4:         0004-doc-Deprecate-lirc.hwdb-NEWS-update.patch
-Patch5:         0005-doc-Mute-annoying-build-error-message.patch
-Patch6:         0006-Build-Use-correct-python-interpreter.patch
-Patch7:         0007-Build-linking-issue.patch
-
+Patch1:         0001-Build-Remove-python-tests.patch
+Patch2:         0002-python-pkg-tests-Don-t-hardcode-socat-and-expect-pat.patch
+Patch3:         0003-Build-Disable-non-linkable-plugins-on-kfreebsd.patch
 
 BuildRequires:  alsa-lib-devel
 Buildrequires:  autoconf
 BuildRequires:  automake
 BuildRequires:  checkpolicy
 BuildRequires:  doxygen
+BuildRequires:  expect
 BuildRequires:  kernel-headers
 BuildRequires:  man2html
 BuildRequires:  libftdi-devel
@@ -54,15 +49,17 @@ BuildRequires:  libxslt-devel
 BuildRequires:  libusb0.1-devel
 BuildRequires:  libxt-devel
 BuildRequires:  locales
+BuildRequires:  python3-yaml
 BuildRequires:  xsltproc
 %else
 BuildRequires:  libusb-devel
 BuildRequires:  libxslt
 BuildRequires:  libXt-devel
+BuildRequires:  python%{python3_pkgversion}-PyYAML
 %endif
 BuildRequires:  portaudio-devel
 BuildRequires:  python%{python3_pkgversion}-devel
-BuildRequires:  python%{python3_pkgversion}-PyYAML
+BuildRequires:  socat
 BuildRequires:  systemd-devel
 
 Requires:       %{name}-libs = %{version}-%{release}
@@ -93,7 +90,10 @@ Summary:        LIRC core, always needed to run LIRC
 Requires:       lirc-libs%{?_isa} = %{version}-%{release}
 
 %description    core
-The LIRC core contains the lircd daemons, the devinput and
+Part of the LIRC package suite which handles IR remotes. See
+the package lirc for more.
+
+The lirc core contains the lircd daemons, the devinput and
 default driver and most of the applications.
 
 
@@ -108,20 +108,25 @@ Requires:       lirc-drv-portaudio%{?_isa} = %{version}-%{release}
 Requires:       lirc-drv-ftdi%{?_isa} = %{version}-%{release}
 
 %description    compat
+Part of the LIRC package suite which handles IR remotes. See
+the package lirc for more.
+
 Installing this package will install most lirc sub-packages, roughly
 the same as installing previous versions of the lirc package.
 
 %package        libs
 Summary:        LIRC libraries
 Group:          System Environment/Libraries
+                # Mageia upgrade path
+Obsoletes:      %{_lib}lirc0 <= %{version}-%{release}
+
 
 %description    libs
-LIRC is a package that allows you to decode and send infra-red and
-other signals of many (but not all) commonly used remote controls.
-Included applications include daemons which decode the received
-signals as well as user space applications which allow controlling a
-computer with a remote control.  This package includes shared libraries
-that applications use to interface with LIRC.
+Part of the LIRC package suite which handles IR remotes. See
+the package lirc for more.
+
+This package includes shared libraries that applications use to
+interface with LIRC.
 
 
 %package        config
@@ -133,7 +138,10 @@ Requires:       python%{python3_pkgversion}-PyYAML
 BuildArch:      noarch
 
 %description    config
-The LIRC config package contains tools and data to support the
+Part of the LIRC package suite which handles IR remotes. See
+the package lirc for more.
+
+The lirc config package contains tools and data to support the
 LIRC configuration process.
 
 
@@ -143,12 +151,11 @@ Group:          Development/Libraries
 Requires:       lirc-core%{?_isa} = %{version}-%{release}
 
 %description    devel
-LIRC is a package that allows you to decode and send infra-red and
-other signals of many (but not all) commonly used remote controls.
-Included applications include daemons which decode the received
-signals as well as user space applications which allow controlling a
-computer with a remote control.  This package includes files for
-developing applications that use LIRC.
+Part of the LIRC package suite which handles IR remotes. See
+the package lirc for more.
+
+This package includes files for developing applications that use lirc
+including headers and pkg-config files.
 
 
 %package        doc
@@ -157,12 +164,10 @@ Group:          Documentation
 BuildArch:      noarch
 
 %description    doc
-LIRC is a package that allows you to decode and send infra-red and
-other signals of many (but not all) commonly used remote controls.
-Included applications include daemons which decode the received
-signals as well as user space applications which allow controlling a
-computer with a remote control.  This package contains LIRC
-documentation.
+Part of the LIRC package suite which handles IR remotes. See
+the package lirc for more.
+
+This package contains lirc documentation.
 
 
 %package        disable-kernel-rc
@@ -171,8 +176,12 @@ Requires:       %{name} = %{version}-%{release}
 BuildArch:      noarch
 
 %description  disable-kernel-rc
-Udev rule which disables the kernel built-in handling of infrared devices
-(i. e., rc* ones) by making lirc the only used protocol.
+Part of the LIRC package suite which handles IR remotes. See
+the package lirc for more.
+
+This package contains an udev rule which disables the kernel built-in
+handling of infrared devices (i. e., rc* ones) by making lirc the only
+used protocol.
 
 
 %package        tools-gui
@@ -180,7 +189,11 @@ Summary:        LIRC GUI tools
 Requires:       lirc-core%{?_isa} = %{version}-%{release}
 
 %description   tools-gui
-Some seldom used X11-based tools for debugging lirc configurations.
+Part of the LIRC package suite which handles IR remotes. See
+the package lirc for more.
+
+This package contains some seldom used X11-based tools for debugging
+lirc configurations.
 
 
 %package        drv-portaudio
@@ -189,8 +202,11 @@ Requires:       lirc-core%{?_isa} = %{version}-%{release}
 License:        LGPLv2
 
 %description    drv-portaudio
-LIRC user space driver which supports  a IR receiver in microphone input
-using the portaudio library.
+Part of the LIRC package suite which handles IR remotes. See
+the package lirc for more.
+
+This package contains a lirc user space driver which supports
+an IR receiver in microphone input using the portaudio library.
 
 
 %package        drv-ftdi
@@ -198,8 +214,12 @@ Summary:        Ftdi LIRC User-Space Driver
 Requires:       lirc-core%{?_isa} = %{version}-%{release}
 
 %description    drv-ftdi
-LIRC user-space driver which works together with the kernel, providing
-full support for the ftdi device.
+Part of the LIRC package suite which handles IR remotes. See
+the package lirc for more.
+
+This package contains a user-space driver which works together
+with the kernel, providing full support for the ftdi device.
+See http://www.ftdichip.com.
 
 
 # Don't provide or require anything from _docdir, per policy.
@@ -208,7 +228,16 @@ full support for the ftdi device.
 
 
 %prep
-%autosetup -p1 -n %{name}-%{version}%{?tag:-}%{?tag}%{?rcX}
+%setup -q -n %{name}-%{version}%{?tag:-}%{?tag}
+
+%if 0%{?python3_version_nodots} < 035
+%patch1 -p1
+%else
+%patch2 -p1
+%endif
+
+%patch3 -p1
+
 sed -i -e 's/#effective-user/effective-user /' lirc_options.conf
 sed -i -e '/^effective-user/s/=$/= lirc/' lirc_options.conf
 sed -i -e 's|/usr/local/etc/|/etc/|' contrib/irman2lirc
@@ -221,6 +250,19 @@ autoreconf -fi
         --enable-uinput \
         --enable-devinput
 make LANG=C.utf8 V=0 %{?_smp_mflags}
+
+%check
+if test -d python-pkg/tests; then
+    cd python-pkg/tests; python3 -m unittest discover || exit 1
+    cd $OLDPWD
+fi
+
+echo "Plugins: 40" > summary.ok
+echo "Drivers: 51" >> summary.ok
+echo "Errors: 0"   >> summary.ok
+tools/lirc-lsplugins -U plugins/.libs -s > summary
+diff -w summary summary.ok || exit 1
+
 
 %install
 make -s V=0 LIBTOOLFLAGS="--silent %{?Wnone}" DESTDIR=$RPM_BUILD_ROOT install
@@ -361,6 +403,23 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 
 
 %changelog
+* Thu Jun 15 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0-0.6.rc2
+- Fix Mageia python3-yaml deps
+
+* Thu Jun 15 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0-0.5.rc2
+- Fix failing %%prep on epel
+
+* Thu Jun 15 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0-0.4.rc2
+- Use upstream patches from Debian packaging
+
+* Tue Jun 13 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0-0.3.rc2
+- Dont run %%check unless we have required python >= 3.5
+
+* Tue Jun 13 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0-0.2.rc2
+- New upstream version
+- Added tests
+- Patches upstreamed.
+
 * Thu Jun 1 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0-0.1.rc1
 - New upstream version
 - Builds on epel 7 and mageia 6/cauldron

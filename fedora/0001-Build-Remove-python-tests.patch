@@ -1,0 +1,317 @@
+From 680b9cc2365dac5210f90cfcaf1e0db01b3d539a Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas.alec@gmail.com>
+Date: Tue, 13 Jun 2017 15:42:29 +0200
+Subject: [PATCH] Build: Remove python tests.
+
+---
+ Makefile.am                     |   5 --
+ python-pkg/tests/dummy-server   |  92 ----------------------
+ python-pkg/tests/lircrc.conf    |   5 --
+ python-pkg/tests/test_client.py | 168 ----------------------------------------
+ 4 files changed, 270 deletions(-)
+ delete mode 100755 python-pkg/tests/dummy-server
+ delete mode 100644 python-pkg/tests/lircrc.conf
+ delete mode 100644 python-pkg/tests/test_client.py
+
+diff --git a/Makefile.am b/Makefile.am
+index 7cd53ec..7346512 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -80,11 +80,6 @@ py_PYTHON               = python-pkg/lirc/__init__.py \
+                           python-pkg/lirc/database.py \
+                           python-pkg/lirc/paths.py
+ 
+-py_pkg_testdir          = $(pkgdatadir)/python-pkg/tests
+-dist_py_pkg_test_DATA   = python-pkg/tests/test_client.py \
+-                          python-pkg/tests/dummy-server \
+-                          python-pkg/tests/lircrc.conf
+-
+ if HAVE_PYTHON35
+ py_PYTHON               += python-pkg/lirc/async_client.py \
+                           python-pkg/lirc/client.py
+diff --git a/python-pkg/tests/dummy-server b/python-pkg/tests/dummy-server
+deleted file mode 100755
+index a3d2ff7..0000000
+--- a/python-pkg/tests/dummy-server
++++ /dev/null
+@@ -1,92 +0,0 @@
+-#!/usr/bin/expect
+-
+-log_file -noappend backend.log
+-
+-remove_nulls
+-
+-if {$argc > 0 } { set timeout [lindex $argv 0]}
+-set timeout $timeout
+-send_log "Timeout: $timeout\n"
+-
+-while (1) {
+-    expect {
+-        "SEND_ONCE*\n" {
+-            send_log "Command: $expect_out(0,string)"
+-            send "BEGIN\n"
+-            send "SEND_ONCE\n"
+-            send "SUCCESS\n"
+-            send "END\n"
+-        }
+-        "SEND_START*\n" {
+-            send_log "SEND_START\n"
+-            send "BEGIN\n"
+-            send "SEND_START\n"
+-            send "SUCCESS\n"
+-            send "END\n"
+-        }
+-        "SEND_STOP*\n" {
+-            send_log "SEND_STOP\n"
+-            send "BEGIN\n"
+-            send "SIGHUP\n"
+-            send "END\n"
+-            send "BEGIN\n"
+-            send "SEND_STOP\n"
+-            send "SUCCESS\n"
+-            send "END\n"
+-        }
+-        "SET_TRANSMITTERS*\n" {
+-            send_log "SET_TRANSMITTERS\n"
+-            send "BEGIN\n"
+-            send "SET_TRANSMITTERS\n"
+-            send "SUCCESS\n"
+-            send "END\n"
+-        }
+-        "SIMULATE*\n" {
+-            send_log "SIMULATE\n"
+-            send "BEGIN\n"
+-            send "SIMULATE\n"
+-            send "SUCCESS\n"
+-            send "END\n"
+-        }
+-          "LIST\n" {
+-            send_log "LIST_REMOTES\n"
+-            send "BEGIN\n"
+-            send "LIST_REMOTES\n"
+-            send "SUCCESS\n"
+-            send "DATA\n"
+-            send "2\n"
+-            send "mceusb1\n"
+-            send "mceusb2\n"
+-            send "END\n"
+-        }
+-        "LIST_CODES*\n" {
+-            send_log "LIST_CODES\n"
+-            send "BEGIN\n"
+-            send "LIST_CODES\n"
+-            send "SUCCESS\n"
+-            send "DATA\n"
+-            send "11\n"
+-	    send "KEY_0\n"
+-	    send "KEY_1\n"
+-	    send "KEY_2\n"
+-	    send "KEY_3\n"
+-	    send "KEY_4\n"
+-	    send "KEY_5\n"
+-	    send "KEY_6\n"
+-	    send "KEY_7\n"
+-	    send "KEY_8\n"
+-	    send "KEY_9\n"
+-	    send "KEY_HOME\n"
+-            send "END\n"
+-        }
+-        eof {
+-            send_log "eof"
+-        }
+-        timeout {
+-                send_log "Event: #! @000000000000000000 01 mceusb KEY_1\n"
+-                for {set i 0} {$i < 10} {incr i} {
+-                    send "0123456789abcdef 0$i KEY_1 mceusb\n"
+-                }
+-        }
+-    }
+-}
+diff --git a/python-pkg/tests/lircrc.conf b/python-pkg/tests/lircrc.conf
+deleted file mode 100644
+index 198a5c0..0000000
+--- a/python-pkg/tests/lircrc.conf
++++ /dev/null
+@@ -1,5 +0,0 @@
+-begin
+-    prog = foo
+-    button = KEY_1
+-    config = foo-cmd
+-end
+diff --git a/python-pkg/tests/test_client.py b/python-pkg/tests/test_client.py
+deleted file mode 100644
+index e0d1181..0000000
+--- a/python-pkg/tests/test_client.py
++++ /dev/null
+@@ -1,168 +0,0 @@
+-''' Test receiving, primarely RawConnection and LircdConnnection. '''
+-
+-import asyncio
+-import os
+-import os.path
+-import subprocess
+-import sys
+-import time
+-import unittest
+-
+-testdir = os.path.abspath(os.path.dirname(__file__))
+-os.chdir(testdir)
+-
+-sys.path.insert(0, os.path.abspath(os.path.join(testdir, '..')))
+-
+-from lirc import RawConnection, LircdConnection, CommandConnection
+-from lirc import AsyncConnection
+-import lirc
+-
+-_PACKET_ONE = '0123456789abcdef 00 KEY_1 mceusb'
+-_LINE_0 = '0123456789abcdef 00 KEY_1 mceusb'
+-_SOCKET = 'lircd.socket'
+-_SOCAT = '/usr/bin/socat'
+-
+-
+-def _wait_for_socket():
+-    ''' Wait until the ncat process has setup the lircd.socket dummy. '''
+-    i = 0
+-    while not os.path.exists(_SOCKET):
+-        time.sleep(0.01)
+-        i += 1
+-        if i > 100:
+-            raise OSError('Cannot find socket file')
+-
+-
+-class ReceiveTests(unittest.TestCase):
+-    ''' Test various Connections. '''
+-
+-    def testReceiveOneRawLine(self):
+-        ''' Receive a single, raw line. '''
+-
+-        if os.path.exists(_SOCKET):
+-            os.unlink(_SOCKET)
+-        cmd = [_SOCAT,  'UNIX-LISTEN:' + _SOCKET,
+-               'EXEC:"echo %s"' % _PACKET_ONE]
+-        with subprocess.Popen(cmd) as child:
+-            _wait_for_socket()
+-            with RawConnection(socket_path=_SOCKET) as conn:
+-                line = conn.readline()
+-            self.assertEqual(line, _PACKET_ONE)
+-
+-    def testReceive10000RawLines(self):
+-        ''' Receive 10000 raw lines. '''
+-
+-        if os.path.exists(_SOCKET):
+-            os.unlink(_SOCKET)
+-        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET, 'EXEC:"./dummy-server 0"']
+-        with subprocess.Popen(cmd,
+-                              stdout = subprocess.PIPE,
+-                              stderr = subprocess.STDOUT) as child:
+-            _wait_for_socket()
+-            lines = []
+-            with RawConnection(socket_path=_SOCKET) as conn:
+-                for i in range(0, 10000):
+-                    lines.append(conn.readline())
+-            self.assertEqual(lines[0], _LINE_0)
+-            self.assertEqual(lines[9999], _LINE_0.replace(" 00 ", " 09 "))
+-
+-    def testReceiveOneLine(self):
+-        ''' Receive a single, translated line OK. '''
+-
+-        if os.path.exists(_SOCKET):
+-            os.unlink(_SOCKET)
+-        cmd = [_SOCAT,  'UNIX-LISTEN:' + _SOCKET,
+-               'EXEC:"echo %s"' % _PACKET_ONE]
+-        with subprocess.Popen(cmd) as child:
+-            _wait_for_socket()
+-            with LircdConnection('foo',
+-                                 socket_path=_SOCKET,
+-                                 lircrc_path='lircrc.conf') as conn:
+-                line = conn.readline()
+-        self.assertEqual(line, 'foo-cmd')
+-
+-    def testReceive1AsyncLines(self):
+-        ''' Receive 1000 lines using the async interface. '''
+-
+-        async def get_lines(raw_conn, count):
+-
+-            nonlocal lines
+-            async with AsyncConnection(raw_conn, loop) as conn:
+-                async for keypress in conn:
+-                    lines.append(keypress)
+-                    if len(lines) >= count:
+-                        return lines
+-
+-        if os.path.exists(_SOCKET):
+-            os.unlink(_SOCKET)
+-        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET, 'EXEC:"./dummy-server 0"']
+-        lines = []
+-        with subprocess.Popen(cmd,
+-                              stdout = subprocess.PIPE,
+-                              stderr = subprocess.STDOUT) as child:
+-            _wait_for_socket()
+-            loop = asyncio.get_event_loop()
+-            with LircdConnection('foo',
+-                                 socket_path=_SOCKET,
+-                                 lircrc_path='lircrc.conf') as conn:
+-                loop.run_until_complete(get_lines(conn, 1000))
+-            loop.close()
+-
+-        self.assertEqual(len(lines), 1000)
+-        self.assertEqual(lines[0], 'foo-cmd')
+-        self.assertEqual(lines[999], 'foo-cmd')
+-
+-    def testReceiveTimeout(self):
+-        ''' Generate a TimeoutException if there is no data '''
+-
+-        if os.path.exists(_SOCKET):
+-            os.unlink(_SOCKET)
+-        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET, 'EXEC:"sleep 1"']
+-        with subprocess.Popen(cmd) as child:
+-            _wait_for_socket()
+-            with LircdConnection('foo',
+-                                 socket_path=_SOCKET,
+-                                 lircrc_path='lircrc.conf') as conn:
+-                self.assertRaises(lirc.TimeoutException, conn.readline, 0.1)
+-
+-
+-class CommandTests(unittest.TestCase):
+-    ''' Test Command, Reply, ReplyParser and some Commands samples. '''
+-
+-    def testRemotesCommmand(self):
+-        ''' Do LIST without arguments . '''
+-
+-        if os.path.exists(_SOCKET):
+-            os.unlink(_SOCKET)
+-        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET, 'EXEC:"./dummy-server 100"']
+-        with subprocess.Popen(cmd,
+-                              stdout = subprocess.PIPE,
+-                              stderr = subprocess.STDOUT) as child:
+-            _wait_for_socket()
+-            with CommandConnection(socket_path=_SOCKET) as conn:
+-                reply = lirc.ListRemotesCommand(conn).run()
+-            self.assertEqual(len(reply.data), 2)
+-            self.assertEqual(reply.success, True)
+-            self.assertEqual(reply.data[0], 'mceusb1')
+-            self.assertEqual(reply.data[1], 'mceusb2')
+-            self.assertEqual(reply.sighup, False)
+-
+-    def testSighupReply(self):
+-        ''' Handle an unexpected SIGHUP in SEND_STOP reply. '''
+-
+-        if os.path.exists(_SOCKET):
+-            os.unlink(_SOCKET)
+-        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET, 'EXEC:"./dummy-server 100"']
+-        with subprocess.Popen(cmd,
+-                              stdout = subprocess.PIPE,
+-                              stderr = subprocess.STDOUT) as child:
+-            _wait_for_socket()
+-            with CommandConnection(socket_path=_SOCKET) as conn:
+-                reply = lirc.StopRepeatCommand(conn, 'mceusb', 'KEY_1').run()
+-            self.assertEqual(len(reply.data), 0)
+-            self.assertEqual(reply.success, True)
+-            self.assertEqual(reply.sighup, True)
+-
+-
+-if __name__ == '__main__':
+-    unittest.main()
+-- 
+2.9.3
+
