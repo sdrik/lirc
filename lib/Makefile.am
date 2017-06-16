@@ -140,7 +140,6 @@ paths.h: ../paths.h
 lirc/paths.h: ../paths.h | lirc
 	-cp ../paths.h $@
 
-
 input_map.lo: lirc/input_map.inc
 
 input_map.inc: lirc/input_map.inc
