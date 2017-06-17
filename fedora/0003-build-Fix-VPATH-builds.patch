@@ -1,0 +1,205 @@
+From 7203b5466552c5ccf642ab140253430a4ee8e6bb Mon Sep 17 00:00:00 2001
+From: Alec Leamas <leamas@nowhere.net>
+Date: Sat, 17 Jun 2017 15:34:54 +0200
+Subject: [PATCH] build: Fix VPATH builds.
+
+---
+ Makefile.am         | 29 +++++++++++++++++------------
+ configs/Makefile.am |  4 ++--
+ daemons/Makefile.am |  5 +++--
+ doc/Makefile.am     |  4 ++--
+ lib/Makefile.am     | 16 +++++++++++++---
+ tools/Makefile.am   |  2 +-
+ 11 files changed, 42 insertions(+), 26 deletions(-)
+
+diff --git a/Makefile.am b/Makefile.am
+index 21fc3fb4..5a0313de 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -68,7 +68,7 @@ dist_pkgconfig_DATA     = lirc.pc lirc-driver.pc
+ headerdir               = $(includedir)/lirc
+ nobase_header_HEADERS   = include/media/lirc.h \
+                           include/linux/input-event-codes.h
+-header_HEADERS          = paths.h config.h drivers/irpipe/irpipe.h
++header_HEADERS          = drivers/irpipe/irpipe.h
+
+ py_pkgdir               = $(pkgdatadir)/python-pkg
+ dist_py_pkg_DATA        = python-pkg/setup.py \
+@@ -106,7 +106,9 @@ py_LTLIBRARIES          = python-pkg/lib/_client.la
+ python_pkg_lib__client_la_SOURCES = \
+                           python-pkg/lirc/_client.c
+ python_pkg_lib__client_la_CPPFLAGS = \
+-                          $(PYTHON_CFLAGS) $(AM_CPPFLAGS) -I$(abs_srcdir)/lib
++                          $(PYTHON_CFLAGS) $(AM_CPPFLAGS) \
++			  -I$(abs_builddir)/lib -I$(abs_srcdir)/lib
++
+ python_pkg_lib__client_la_LDFLAGS  = \
+                           -module -avoid-version -export-symbols-regex client \
+                           $(PYTHON_LIBS)
+@@ -124,9 +126,10 @@ pep8: $(py_PYTHON)
+
+ if HAVE_PYTHON35
+ all-local:
+-	cd python-pkg; CFLAGS=-I$(abs_top_srcdir)/lib \
++	cd python-pkg; \
++	    CFLAGS="-I$(abs_top_srcdir)/lib -I$(abs_builddir)/lib" \
+ 	    LDFLAGS=-L$(abs_builddir)/lib/.libs $(PYTHON) setup.py \
+-	        $(if $(VERBOSE),,-q) build
++	    $(if $(VERBOSE),,-q) build
+ endif
+
+ install-data-hook:
+@@ -144,9 +147,13 @@ dist-hook: ChangeLog fix-version
+ 	cp -pr $(srcdir)/contrib $(distdir)
+
+ clean-local:
+-	cd python-pkg; rm -rf dist lib build lirc/__pycache__ lirc.egg-info \
+-	    lirc/config.py lirc/_client.so  tests/__pycache__  VERSION
+-	test $(abs_builddir) == $(abs_srcdir) || rm -rf python-pkg
++	cd $(builddir)/python-pkg; rm -rf  lirc/__pycache__ lirc.egg-info \
++	    lirc/config.py tests/__pycache__  VERSION dist build lib
++
++distclean-local:
++	test $(abs_builddir) = $(abs_srcdir) || \
++	    rm -rf $(abs_builddir)/python-pkg
++
+
+ maintainer-clean-local:
+ 	find . -name Makefile.in -delete
+@@ -161,14 +168,12 @@ $(abs_builddir)/python-pkg/setup.py:
+ 	cp -ar $(top_srcdir)/python-pkg  $(abs_builddir)
+ 	chmod -R u+w  python-pkg
+
+-$(PYTHON_TARBALL): $(abs_builddir)/python-pkg/setup.py
+-	cp $(top_srcdir)/VERSION $(abs_builddir)/python-pkg
+-	test $(top_srcdir) == $(top_builddir) || \
+-	    cp $(top_srcdir)/lirc.pc $(top_builddir)
++$(PYTHON_TARBALL): $(abs_builddir)/python-pkg/setup.py
++	cp $(top_builddir)/VERSION $(abs_builddir)/python-pkg
+ 	cd $(abs_builddir)/python-pkg; CFLAGS=-I$(abs_top_srcdir)/lib \
+ 	    LDFLAGS=-L$(abs_builddir)/lib/.libs $(PYTHON) setup.py -q sdist
+
+-$(top_builddir)/python-pkg/VERSION: VERSION
++$(top_builddir)/python-pkg/VERSION: $(top_builddir)/VERSION
+ 	cp $? $@
+
+ python-pkg/lirc/config.py: Makefile  $(abs_builddir)/python-pkg/setup.py
+diff --git a/configs/Makefile.am b/configs/Makefile.am
+index 32bc9156..cbc94218 100644
+--- a/configs/Makefile.am
++++ b/configs/Makefile.am
+@@ -22,9 +22,9 @@ confs_by_driver.yaml: $(srcdir)/remotes.list $(top_srcdir)/tools/irdb-get
+ 	-XDG_CACHE_HOME=$(srcdir) \
+ 	    $(top_srcdir)/tools/irdb-get yaml-config > confs_by_driver.yaml
+
+-remotes.list:
++$(srcdir)/remotes.list:
+ 	test -w $(srcdir) && \
+-	    XDG_CACHE_HOME=$(srcdir) ../tools/irdb-get update
++	    XDG_CACHE_HOME=$(srcdir) $(top_srcdir)/tools/irdb-get update
+
+ ../tools/lirc-lsplugins:
+ 	cd ../lib; $(MAKE)
+diff --git a/daemons/Makefile.am b/daemons/Makefile.am
+index ce126381..e13556f8 100644
+--- a/daemons/Makefile.am
++++ b/daemons/Makefile.am
+@@ -1,8 +1,9 @@
+ ## Process this file with automake to produce Makefile.in
+ ACLOCAL_AMFLAGS         = -I m4
+
+-AM_CPPFLAGS             = -I$(top_srcdir) -I$(top_srcdir)/lib -Wall
+-AM_CPPFLAGS             += -std=c++11 -Wp,-D_FORTIFY_SOURCE=2
++AM_CPPFLAGS             = -I$(top_builddir) -I$(top_builddir)/lib  \
++			  -I$(top_srcdir)/lib
++AM_CPPFLAGS             += -std=c++11 -Wp,-D_FORTIFY_SOURCE=2 -Wall
+ AM_CPPFLAGS             += @kernel_header_flags@
+ AM_LDFLAGS              = -lpthread $(SYSTEMD_LIBS)
+
+diff --git a/doc/Makefile.am b/doc/Makefile.am
+index 595c1a2a..9aea41a1 100644
+--- a/doc/Makefile.am
++++ b/doc/Makefile.am
+@@ -149,14 +149,14 @@ $(srcdir)/manpage.xsl: $(abs_builddir)/driver-toc.xsl
+ table.html: docpage.xsl
+ 	test -e lirc || \
+ 	    ln -s $(top_srcdir)/tools/lirc-setup lirc 2>/dev/null || :
+-	PYTHONPATH=$(top_srcdir)/python-pkg/lirc \
++	PYTHONPATH=$(top_builddir)/python-pkg/lirc \
+ 	$(PYTHON) $(srcdir)/data2table $(top_srcdir)/configs ../configs \
+ 	        | xsltproc --html docpage.xsl - > table.html
+
+ lirc.hwdb:
+ 	test -e lirc || \
+ 	    ln -s $(top_srcdir)/tools/lirc-setup lirc  2>/dev/null || :
+-	PYTHONPATH=$(top_srcdir)/python-pkg/lirc \
++	PYTHONPATH=$(top_builddir)/python-pkg/lirc \
+ 	$(PYTHON) $(srcdir)/data2hwdb $(top_srcdir)/configs ../configs \
+ 	    > lirc.hwdb
+
+diff --git a/lib/Makefile.am b/lib/Makefile.am
+index 41a8697b..1fa48346 100644
+--- a/lib/Makefile.am
++++ b/lib/Makefile.am
+@@ -7,10 +7,11 @@ EXTRA_DIST                  = driver_api.dox lirc_client.dox mainpage.dox \
+                               driver_api.doxhead lirc_client.doxhead
+
+ BUILT_SOURCES               = input_map.inc lirc/input_map.inc config.h \
+-			      lirc/config.h
++			      lirc/config.h paths.h
+
+-AM_CPPFLAGS                 = -I$(top_srcdir) -Wall -Wp,-D_FORTIFY_SOURCE=2 \
+-                              @kernel_header_flags@
++AM_CPPFLAGS                 = -I$(top_srcdir) -I$(top_srcdir)/lib \
++                              -I$(top_builddir) -Wall \
++                              -Wp,-D_FORTIFY_SOURCE=2 @kernel_header_flags@
+
+ lib_LTLIBRARIES             = liblirc.la liblirc_client.la liblirc_driver.la \
+                               libirrecord.la
+@@ -72,6 +73,7 @@ lircincludedir              = $(includedir)/lirc
+ dist_lircinclude_HEADERS    = config_file.h \
+                               config_flags.h \
+                               ciniparser.h \
++                              config.h \
+                               curl_poll.h \
+                               dictionary.h \
+                               drv_admin.h \
+@@ -88,6 +90,7 @@ dist_lircinclude_HEADERS    = config_file.h \
+                               lirc_log.h \
+                               lirc_options.h \
+                               lirc-utils.h \
++                              paths.h \
+                               release.h \
+                               receive.h \
+                               serial.h \
+@@ -126,6 +129,13 @@ config.h: ../config.h
+ lirc/config.h: ../config.h lirc
+ 	cp ../config.h $@
+
++paths.h: ../paths.h
++	cp $? $@
++
++lirc/paths.h: ../paths.h lirc
++	cp ../paths.h $@
++
++
+ input_map.lo: lirc/input_map.inc
+
+ input_map.inc: lirc/input_map.inc
+
+diff --git a/tools/Makefile.am b/tools/Makefile.am
+index 5eb40d65..abfb9911 100644
+--- a/tools/Makefile.am
++++ b/tools/Makefile.am
+@@ -4,7 +4,7 @@ AUTOMAKE_OPTIONS        = subdir-objects
+
+ include                 ../pylint.mak
+
+-AM_CPPFLAGS             = -I$(top_srcdir)/lib -I$(top_srcdir) \
++AM_CPPFLAGS             = -I$(top_builddir)/lib -I$(top_builddir) -I$(top_srcdir)/lib \
+                            @X_CFLAGS@  @kernel_header_flags@
+ AM_CPPFLAGS             += -g -Wall -Wp,-D_FORTIFY_SOURCE=2
+ AM_LDFLAGS              =  -L../lib -llirc -llirc_client
+--
+2.11.0
+

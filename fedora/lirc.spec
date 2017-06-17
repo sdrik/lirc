@@ -1,9 +1,10 @@
 %global _hardened_build 1
 %global __python %{__python3}
 
-%global released 0
+%global released 1
 %define tag     rc2
 
+# Mageia: re-define pesky configure2_5x to configure it it exists.
 %{?configure2_5x:%global configure %configure2_5x}
 
 %if (0%{?fedora} > 24 || 0%{?mageia} > 5)
@@ -16,7 +17,7 @@
 
 Name:           lirc
 Version:        0.10.0
-Release:        0.6%{?tag:.}%{?tag}%{?dist}
+Release:        0.7%{?tag:.}%{?tag}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
 %global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}
@@ -29,10 +30,12 @@ URL:            http://www.lirc.org/
 Source0:        %{?released:%{repo}%{?tag:-}%{?tag}/}%{tarball}
 Source2:        99-remote-control-lirc.rules
 
-Patch1:         0001-Build-Remove-python-tests.patch
-Patch2:         0002-python-pkg-tests-Don-t-hardcode-socat-and-expect-pat.patch
-Patch3:         0003-Build-Disable-non-linkable-plugins-on-kfreebsd.patch
+Patch1:         0001-python-pkg-tests-Don-t-hardcode-socat-and-expect-pat.patch
+Patch2:         0002-Build-Disable-non-linkable-plugins-on-kfreebsd.patch
+Patch3:         0003-build-Fix-VPATH-builds.patch
+Patch100:       0100-python-pkg-Remove-all-test-files.patch
 
+BuildRequires:  /usr/bin/xsltproc
 BuildRequires:  alsa-lib-devel
 Buildrequires:  autoconf
 BuildRequires:  automake
@@ -45,15 +48,12 @@ BuildRequires:  libftdi-devel
 BuildRequires:  libtool
 BuildRequires:  libusb1-devel
 %if 0%{?mageia} > 4
-BuildRequires:  libxslt-devel
 BuildRequires:  libusb0.1-devel
 BuildRequires:  libxt-devel
 BuildRequires:  locales
 BuildRequires:  python3-yaml
-BuildRequires:  xsltproc
 %else
 BuildRequires:  libusb-devel
-BuildRequires:  libxslt
 BuildRequires:  libXt-devel
 BuildRequires:  python%{python3_pkgversion}-PyYAML
 %endif
@@ -229,14 +229,14 @@ See http://www.ftdichip.com.
 
 %prep
 %setup -q -n %{name}-%{version}%{?tag:-}%{?tag}
+%patch1 -p1
+%patch2 -p1
+%patch3 -p1
 
 %if 0%{?python3_version_nodots} < 035
-%patch1 -p1
-%else
-%patch2 -p1
+%patch100 -p1
 %endif
 
-%patch3 -p1
 
 sed -i -e 's/#effective-user/effective-user /' lirc_options.conf
 sed -i -e '/^effective-user/s/=$/= lirc/' lirc_options.conf
@@ -403,6 +403,9 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 
 
 %changelog
+* Sat Jun 17 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0-0.7.rc2
+- Adding upstream VPATH build patch.
+
 * Thu Jun 15 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0-0.6.rc2
 - Fix Mageia python3-yaml deps
 

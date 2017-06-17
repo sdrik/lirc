@@ -1,14 +1,14 @@
-From 680b9cc2365dac5210f90cfcaf1e0db01b3d539a Mon Sep 17 00:00:00 2001
+From 999528e63fd84e85b4b5b0d0bb451782acd3a862 Mon Sep 17 00:00:00 2001
 From: Alec Leamas <leamas.alec@gmail.com>
-Date: Tue, 13 Jun 2017 15:42:29 +0200
-Subject: [PATCH] Build: Remove python tests.
+Date: Thu, 15 Jun 2017 21:38:01 +0200
+Subject: [PATCH 3/3] python-pkg: Remove all test files.
 
 ---
  Makefile.am                     |   5 --
- python-pkg/tests/dummy-server   |  92 ----------------------
+ python-pkg/tests/dummy-server   |  90 ---------------------
  python-pkg/tests/lircrc.conf    |   5 --
- python-pkg/tests/test_client.py | 168 ----------------------------------------
- 4 files changed, 270 deletions(-)
+ python-pkg/tests/test_client.py | 175 ----------------------------------------
+ 4 files changed, 275 deletions(-)
  delete mode 100755 python-pkg/tests/dummy-server
  delete mode 100644 python-pkg/tests/lircrc.conf
  delete mode 100644 python-pkg/tests/test_client.py
@@ -31,12 +31,10 @@ index 7cd53ec..7346512 100644
                            python-pkg/lirc/client.py
 diff --git a/python-pkg/tests/dummy-server b/python-pkg/tests/dummy-server
 deleted file mode 100755
-index a3d2ff7..0000000
+index 80a283d..0000000
 --- a/python-pkg/tests/dummy-server
 +++ /dev/null
-@@ -1,92 +0,0 @@
--#!/usr/bin/expect
--
+@@ -1,90 +0,0 @@
 -log_file -noappend backend.log
 -
 -remove_nulls
@@ -140,10 +138,10 @@ index 198a5c0..0000000
 -end
 diff --git a/python-pkg/tests/test_client.py b/python-pkg/tests/test_client.py
 deleted file mode 100644
-index e0d1181..0000000
+index d9af254..0000000
 --- a/python-pkg/tests/test_client.py
 +++ /dev/null
-@@ -1,168 +0,0 @@
+@@ -1,175 +0,0 @@
 -''' Test receiving, primarely RawConnection and LircdConnnection. '''
 -
 -import asyncio
@@ -166,7 +164,10 @@ index e0d1181..0000000
 -_PACKET_ONE = '0123456789abcdef 00 KEY_1 mceusb'
 -_LINE_0 = '0123456789abcdef 00 KEY_1 mceusb'
 -_SOCKET = 'lircd.socket'
--_SOCAT = '/usr/bin/socat'
+-_SOCAT = subprocess.check_output('which socat', shell=True) \
+-    .decode('ascii').strip()
+-_EXPECT = subprocess.check_output('which expect', shell=True) \
+-    .decode('ascii').strip()
 -
 -
 -def _wait_for_socket():
@@ -200,7 +201,8 @@ index e0d1181..0000000
 -
 -        if os.path.exists(_SOCKET):
 -            os.unlink(_SOCKET)
--        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET, 'EXEC:"./dummy-server 0"']
+-        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET,
+-                'EXEC:"%s ./dummy-server 0"' % _EXPECT]
 -        with subprocess.Popen(cmd,
 -                              stdout = subprocess.PIPE,
 -                              stderr = subprocess.STDOUT) as child:
@@ -241,7 +243,8 @@ index e0d1181..0000000
 -
 -        if os.path.exists(_SOCKET):
 -            os.unlink(_SOCKET)
--        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET, 'EXEC:"./dummy-server 0"']
+-        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET,
+-               'EXEC:"%s ./dummy-server 0"' % _EXPECT]
 -        lines = []
 -        with subprocess.Popen(cmd,
 -                              stdout = subprocess.PIPE,
@@ -280,7 +283,8 @@ index e0d1181..0000000
 -
 -        if os.path.exists(_SOCKET):
 -            os.unlink(_SOCKET)
--        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET, 'EXEC:"./dummy-server 100"']
+-        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET,
+-               'EXEC:"%s ./dummy-server 100"' % _EXPECT]
 -        with subprocess.Popen(cmd,
 -                              stdout = subprocess.PIPE,
 -                              stderr = subprocess.STDOUT) as child:
@@ -298,7 +302,8 @@ index e0d1181..0000000
 -
 -        if os.path.exists(_SOCKET):
 -            os.unlink(_SOCKET)
--        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET, 'EXEC:"./dummy-server 100"']
+-        cmd = [_SOCAT, 'UNIX-LISTEN:' + _SOCKET,
+-               'EXEC:"%s ./dummy-server 100"' % _EXPECT]
 -        with subprocess.Popen(cmd,
 -                              stdout = subprocess.PIPE,
 -                              stderr = subprocess.STDOUT) as child:
