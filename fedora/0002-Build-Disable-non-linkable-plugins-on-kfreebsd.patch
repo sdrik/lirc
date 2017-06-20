@@ -1,4 +1,4 @@
-From cd7f9b49bbf8b1832bb0480cdecb07f8ad8e61f7 Mon Sep 17 00:00:00 2001
+From e061cfb0325e066b831a35006fe2fcece5ef05a3 Mon Sep 17 00:00:00 2001
 From: Alec Leamas <al@localhost>
 Date: Thu, 15 Jun 2017 00:28:04 +0200
 Subject: [PATCH 2/3] Build: Disable non-linkable plugins on kfreebsd.

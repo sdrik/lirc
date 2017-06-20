@@ -32,7 +32,7 @@ Source2:        99-remote-control-lirc.rules
 
 Patch1:         0001-python-pkg-tests-Don-t-hardcode-socat-and-expect-pat.patch
 Patch2:         0002-Build-Disable-non-linkable-plugins-on-kfreebsd.patch
-Patch3:         0003-build-Fix-VPATH-builds.patch
+Patch3:         0003-build-Fix-VPATHS-builds-294.patch
 Patch100:       0100-python-pkg-Remove-all-test-files.patch
 
 BuildRequires:  /usr/bin/xsltproc
