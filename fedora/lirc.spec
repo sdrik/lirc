@@ -1,8 +1,8 @@
 %global _hardened_build 1
 %global __python %{__python3}
 
-%global released 1
-%define tag     rc2
+#global released 1
+%define tag     rc3
 
 # Mageia: re-define pesky configure2_5x to configure it it exists.
 %{?configure2_5x:%global configure %configure2_5x}
@@ -17,7 +17,7 @@
 
 Name:           lirc
 Version:        0.10.0
-Release:        0.7%{?tag:.}%{?tag}%{?dist}
+Release:        0.8%{?tag:.}%{?tag}%{?dist}
 Summary:        The Linux Infrared Remote Control package
 
 %global repo    http://downloads.sourceforge.net/lirc/LIRC/%{version}
@@ -29,11 +29,6 @@ License:        GPLv2 and BSD
 URL:            http://www.lirc.org/
 Source0:        %{?released:%{repo}%{?tag:-}%{?tag}/}%{tarball}
 Source2:        99-remote-control-lirc.rules
-
-Patch1:         0001-python-pkg-tests-Don-t-hardcode-socat-and-expect-pat.patch
-Patch2:         0002-Build-Disable-non-linkable-plugins-on-kfreebsd.patch
-Patch3:         0003-build-Fix-VPATHS-builds-294.patch
-Patch100:       0100-python-pkg-Remove-all-test-files.patch
 
 BuildRequires:  /usr/bin/xsltproc
 BuildRequires:  alsa-lib-devel
@@ -228,19 +223,15 @@ See http://www.ftdichip.com.
 
 
 %prep
-%setup -q -n %{name}-%{version}%{?tag:-}%{?tag}
-%patch1 -p1
-%patch2 -p1
-%patch3 -p1
-
-%if 0%{?python3_version_nodots} < 035
-%patch100 -p1
-%endif
-
+%autosetup -n %{name}-%{version}%{?tag:-}%{?tag}
 
 sed -i -e 's/#effective-user/effective-user /' lirc_options.conf
 sed -i -e '/^effective-user/s/=$/= lirc/' lirc_options.conf
 sed -i -e 's|/usr/local/etc/|/etc/|' contrib/irman2lirc
+
+%if 0%{?epel} > 0
+cd python-pkg/tests; rm dummy-server lircrc.conf test_client.py
+%endif
 
 %build
 autoreconf -fi
@@ -403,6 +394,10 @@ systemd-tmpfiles --create %{_tmpfilesdir}/lirc.conf
 
 
 %changelog
+* Wed Jun 21 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0-0.8.rc3
+- Updated upstream sources (still not tagged).
+- Fix lircmd bogus logging (#295).
+
 * Sat Jun 17 2017 Alec Leamas <leamas.alec@gmail.com> - 0.10.0-0.7.rc2
 - Adding upstream VPATH build patch.
 
