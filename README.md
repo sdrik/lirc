@@ -8,7 +8,7 @@ which tracks the debian official packages.
 
 The 'debian-0.10' branch is used for the official packaging available in
 Debian (stretch) and Ubuntu (zesty). The 'ubuntu' branch builds on
-debian (jessie) and ubuntu (trusty, xenial and yakkety).
+debian (jessie, stretch) and ubuntu (xenial and yakkety).
 
 The packaging provides a debian source package. Such a source package
 can be built using git clone (below). Lirc releases also contains a
@@ -48,7 +48,7 @@ rebuild it from git (above) and do something similar to
     $ tar xf lirc-debian-src-0.9.4-1.3.tar.gz
     $ cd lirc-debian-src-0.9.4
     $ sudo apt-get install pbuilder
-    $ sudo pbuilder create --distribution jessie  --override-config
+    $ sudo pbuilder create --distribution jessie --override-config
     $ sudo rm -f /var/cache/pbuilder/result/*
     $ sudo pbuilder build *.dsc
 
