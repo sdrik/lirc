@@ -1,9 +1,2 @@
 lirc.org-Remove-non-free-advertising.patch
 Add-hotplug-start-udev-from.0.9.0.patch
-0001-lib-Fix-missing-include-config.h.patch
-0002-build-Let-configure-update-also-lib-lirc-config.h.patch
-0003-build-Mageia-fixes.patch
-0004-doc-Deprecate-lirc.hwdb-NEWS-update.patch
-0005-doc-Mute-annoying-build-error-message.patch
-0006-Build-Use-correct-python-interpreter.patch
-0007-Build-fix-linking-issue.patch
