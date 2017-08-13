@@ -8,7 +8,7 @@ Uploaders:
   Stefan Lippers-Hollmann <s.l-h@gmx.de>,
   Alec Leamas <leamas.alec@gmail.com>
 Vcs-Git: git://git.code.sf.net/p/lirc/git -b debian-0.10
-Vcs-Browser: https://sourceforge.net/p/lirc/git/ci/debian/tree/
+Vcs-Browser: https://sourceforge.net/p/lirc/git/ci/debian-0.10/tree/
 Build-Depends:
  debhelper (>= 10),
  dh-exec,

@@ -1,3 +1,12 @@
+lirc (0.10.0-2) UNRELEASED; urgency=medium
+
+  * Fixed VCS browser path
+  * Restore parallel builds, accidentally disabled in -1
+  * Fixed upstream bus #294 (VPATH build issues, in -1).
+  * Fixed upstream bug #295  - lircmd non-existing socket writes, in -1.
+
+ -- Alec Leamas <leamas.alec@gmail.com>  Sun, 13 Aug 2017 09:45:34 +0200
+
 lirc (0.10.0-1) unstable; urgency=medium
 
   * New upstream release
@@ -13,7 +22,7 @@ lirc (0.10.0~rc3-1) experimental; urgency=medium
   * kfreebsd build fixes.
   * Remove lingering /etc/init.d/lirc, closes: #865376.
   * Fix absolute path config files, closes: #860065 (rc1).
-  * Suggest stopping lircd in devinput "No device available" message, 
+  * Suggest stopping lircd in devinput "No device available" message,
     closes: #860551 (rc1).
 
  -- Alec Leamas <leamas.alec@gmail.com>  Thu, 22 Jun 2017 12:22:52 +0200
