@@ -2,6 +2,8 @@
 
 set -e
 
+rm -f /etc/init.d/lirc
+
 systemd-tmpfiles --create /usr/lib/tmpfiles.d/lirc.conf || :
 
 for f in lircd.conf lircmd.conf irexec.lircrc lirc_options.conf; do

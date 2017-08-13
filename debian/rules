@@ -6,17 +6,26 @@ export DEB_BUILD_MAINT_OPTIONS      = hardening=+all
 export DEB_LDFLAGS_MAINT_APPEND     = -Wl,--as-needed
 
 %:
-	dh $@ --with autoreconf,python3,systemd --parallel
+	dh $@ --with python3,systemd
+
+override_dh_clean:
+	dh_clean
+	touch python-pkg/lirc/config.py
 
 override_dh_autoreconf:
 	dh_autoreconf $(CURDIR)/autogen.sh
 
 override_dh_auto_configure:
 ifeq ($(DEB_BUILD_ARCH_OS), linux)
-	dh_auto_configure -- --enable-devinput --enable-uinput
+	dh_auto_configure -- \
+	    --enable-uinput --enable-devinput \
+	    --enable-silent-rules
 else
-	dh_auto_configure
+	dh_auto_configure -- \
+	    --disable-uinput --disable-devinput \
+	    --enable-silent-rules
 endif
+
 
 override_dh_shlibdeps:
 	dh_shlibdeps -l $(CURDIR)/debian/tmp/usr/lib/*/lirc/plugins
@@ -27,8 +36,8 @@ override_dh_auto_install:
 	    install
 	py3clean debian/tmp
 	find debian/tmp -name *.la -delete
-	rm -f debian/tmp/usr/share/man/man4/lirc.4l*
 	rm -f debian/tmp/usr/share/doc/lirc/lirc.org/api-docs/api-docs
+	chmod 755 debian/tmp/usr/share/lirc/python-pkg/lirc/lirctool
 ifeq ($(DEB_BUILD_ARCH_OS), linux)
 	mkdir -p debian/tmp/usr/lib/tmpfiles.d
 	echo "d /var/run/lirc  0755  root  root  10d" \
@@ -40,6 +49,21 @@ endif
 	for f in lircd.conf lircmd.conf irexec.lircrc lirc_options.conf; do \
 	    mv debian/tmp/etc/lirc/$$f debian/tmp/etc/lirc/$$f.dist; \
 	done
+
+override_dh_auto_test:
+ifneq "nocheck"  "$(findstring nocheck,$(DEB_BUILD_OPTIONS))"
+	tools/lirc-lsplugins -U plugins/.libs -s | tee summary
+	grep -q "Errors: 0" summary && rm summary
+	case $$(dpkg-architecture -qDEB_HOST_GNU_SYSTEM) in \
+	    kfreebsd* | gnu) \
+	        :  ;; \
+	    *)  \
+	        cd python-pkg/tests; \
+	        python3 -m unittest discover && rm backend.log \
+		;; \
+	esac
+endif
+
 
 override_dh_systemd_enable:
 	dh_systemd_enable --name=lircd
@@ -53,8 +77,10 @@ override_dh_installinit:
 	dh_installinit
 
 override_dh_python3:
-	# dh_python3 fails to create deps and to compile.
-	dh_python3 /usr/lib/*/python3/dist-packages/lirc/
+	dh_python3
+	dh_python3 debian/tmp/usr/lib/*/python*/site-packages/lirc
+	dh_python3 debian/tmp/usr/lib/*/python*/site-packages/lirc-setup
+	dh_python3 debian/tmp/usr/share/lirc/python-pkg
 
 override_dh_fixperms-arch:
 	dh_fixperms

@@ -3,3 +3,4 @@
 .sync-stamp
 *.gz
 *.BAK
+debian/README

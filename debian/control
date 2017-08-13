@@ -1,26 +1,25 @@
-Standards-Version: 3.9.8
 Source: lirc
 Section: utils
 Priority: extra
 Homepage: http://sf.net/p/lirc
+Standards-Version: 4.0.1
 Maintainer: lirc Maintainer Team <pkg-lirc-maint@lists.alioth.debian.org>
 Uploaders:
   Stefan Lippers-Hollmann <s.l-h@gmx.de>,
   Alec Leamas <leamas.alec@gmail.com>
-Vcs-Git: git://git.code.sf.net/p/lirc/git -b debian
+Vcs-Git: git://git.code.sf.net/p/lirc/git -b debian-0.10
 Vcs-Browser: https://sourceforge.net/p/lirc/git/ci/debian/tree/
 Build-Depends:
- debhelper (>= 9),
- dh-autoreconf,
+ debhelper (>= 10),
  dh-exec,
  dh-systemd,
  dh-python,
  doxygen,
+ expect [!hurd-any],
  kmod [linux-any],
  libasound2-dev [linux-any kfreebsd-any],
- libftdi1-devn | libftdi-dev,
- libpython3-dev,
- libsystemd-dev | libsystemd-daemon-dev [linux-any],
+ libftdi1-dev,
+ libsystemd-dev [linux-any],
  libudev-dev [linux-any],
  libusb-1.0-0-dev [!kfreebsd-any],
  libusb-dev[!kfreebsd-any],
@@ -28,9 +27,10 @@ Build-Depends:
  man2html-base,
  pkg-config,
  portaudio19-dev,
- python3,
+ python3-dev (>= 3.5),
  python3-setuptools,
  python3-yaml,
+ socat [!hurd-any],
  systemd [linux-any],
  xsltproc
 # libjs-jquery
@@ -39,10 +39,11 @@ Package: lirc
 Architecture: any
 Depends:
  liblirc0 (= ${binary:Version}),
- ${misc:Depends},
- ${shlibs:Depends},
  lsb-base (>= 3.0-6),
- python3
+ python3,
+ ${misc:Depends},
+ ${python3:Depends},
+ ${shlibs:Depends}
 Recommends:
  python3-yaml,
  python3-gi,
