@@ -109,12 +109,6 @@ void get_release_time(struct timeval* tv)
 	*tv = release_time;
 }
 
-const char* check_release_event(const char** remote_name,
-				const char** button_name)
-{
-	return NULL;
-}
-
 static const char* trigger_release_event(const char** remote_name,
 					 const char** button_name)
 {

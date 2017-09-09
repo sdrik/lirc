@@ -1741,14 +1741,6 @@ skip:
 
 void input_message(const char* message, const char* remote_name, const char* button_name, int reps, int release)
 {
-	const char* release_message;
-	const char* release_remote_name;
-	const char* release_button_name;
-
-	release_message = check_release_event(&release_remote_name, &release_button_name);
-	if (release_message)
-		input_message(release_message, release_remote_name, release_button_name, 0, 1);
-
 	if (!release || userelease)
 		broadcast_message(message);
 }
