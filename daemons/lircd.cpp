@@ -144,7 +144,6 @@ static const char* const help =
 	"\t -P --pidfile=file\t\tDaemon pid file\n"
 	"\t -L --logfile=file\t\tLog file path (default: use syslog)'\n"
 	"\t -D[level] --loglevel[=level]\t'info', 'warning', 'notice', etc., or 3..10.\n"
-	"\t -r --release[=suffix]\t\tDEPRECATED: Auto-generate release events\n"
 	"\t -a --allow-simulate\t\tAccept SIMULATE command\n"
 	"\t -Y --dynamic-codes\t\tEnable dynamic code generation\n"
 	"\t -A --driver-options=key:value[|key:value...]\n"
@@ -170,7 +169,6 @@ static const struct option lircd_options[] = {
 	{ "logfile",	    required_argument, NULL, 'L' },
 	{ "debug",	    optional_argument, NULL, 'D' }, // compatibility
 	{ "loglevel",	    optional_argument, NULL, 'D' },
-	{ "release",	    optional_argument, NULL, 'r' },
 	{ "allow-simulate", no_argument,       NULL, 'a' },
 	{ "dynamic-codes",  no_argument,       NULL, 'Y' },
 	{ "driver-options", required_argument, NULL, 'A' },
@@ -2162,7 +2160,7 @@ int parse_peer_connections(const char* opt)
 static void lircd_parse_options(int argc, char** const argv)
 {
 	int c;
-	const char* optstring = "A:e:O:hvnp:iH:d:o:U:P:l::L:c:r::aR:D::Yu";
+	const char* optstring = "A:e:O:hvnp:iH:d:o:U:P:l::L:c:aR:D::Yu";
 
 	strncpy(progname, "lircd", sizeof(progname));
 	optind = 1;
