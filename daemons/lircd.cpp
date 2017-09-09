@@ -1738,13 +1738,6 @@ skip:
 	return 1;
 }
 
-void input_message(const char* message, const char* remote_name, const char* button_name, int reps, int release)
-{
-	if (!release)
-		broadcast_message(message);
-}
-
-
 void free_old_remotes(void)
 {
 	struct ir_remote* scan_remotes;
@@ -2039,7 +2032,7 @@ void loop(void)
 
 			get_release_data(&remote_name, &button_name, &reps);
 
-			input_message(message, remote_name, button_name, reps, 0);
+			broadcast_message(message);
 		}
 	}
 }
