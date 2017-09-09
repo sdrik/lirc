@@ -41,8 +41,6 @@ static ir_code release_code;
 static int release_reps;
 static lirc_t release_gap;
 
-static struct ir_ncode* release_ncode2;
-static ir_code release_code2;
 
 void register_input(void)
 {
@@ -63,10 +61,6 @@ void register_button_press(struct ir_remote* remote,
 			   ir_code           code,
 			   int               reps)
 {
-	if (reps == 0 && release_remote != NULL) {
-		release_ncode2 = release_ncode;
-		release_code2 = release_code;
-	}
 
 	release_remote = remote;
 	release_ncode = ncode;
