@@ -2377,7 +2377,6 @@ int main(int argc, char** argv)
 		return(EXIT_FAILURE);
 	loglevel_opt = (loglevel_t) options_getint("lircd:debug");
 	userelease = options_getboolean("lircd:release");
-	set_release_suffix(options_getstring("lircd:release_suffix"));
 	allow_simulate = options_getboolean("lircd:allow-simulate");
 	repeat_max = options_getint("lircd:repeat-max");
 	configfile = options_getstring("lircd:configfile");

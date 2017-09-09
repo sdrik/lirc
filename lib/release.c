@@ -99,11 +99,6 @@ void get_release_data(const char** remote_name,
 	}
 }
 
-void set_release_suffix(const char* s)
-{
-	release_suffix = s;
-}
-
 void get_release_time(struct timeval* tv)
 {
 	*tv = release_time;
