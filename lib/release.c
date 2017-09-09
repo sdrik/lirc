@@ -41,7 +41,6 @@ static ir_code release_code;
 static int release_reps;
 static lirc_t release_gap;
 
-static struct ir_remote* release_remote2;
 static struct ir_ncode* release_ncode2;
 static ir_code release_code2;
 static const char* release_suffix = LIRC_RELEASE_SUFFIX;
@@ -67,7 +66,6 @@ void register_button_press(struct ir_remote* remote,
 			   int               reps)
 {
 	if (reps == 0 && release_remote != NULL) {
-		release_remote2 = release_remote;
 		release_ncode2 = release_ncode;
 		release_code2 = release_code;
 	}
@@ -114,30 +112,6 @@ void get_release_time(struct timeval* tv)
 const char* check_release_event(const char** remote_name,
 				const char** button_name)
 {
-	int len = 0;
-
-	if (release_remote2 != NULL) {
-		*remote_name = release_remote2->name;
-		*button_name = release_ncode2->name;
-		len = write_message(message,
-				    PACKET_SIZE + 1,
-				    release_remote2->name,
-				    release_ncode2->name,
-				    release_suffix,
-				    release_code2,
-				    0);
-		release_remote2 = NULL;
-		release_ncode2 = NULL;
-		release_code2 = 0;
-
-		if (len >= PACKET_SIZE + 1) {
-			log_error("message buffer overflow");
-			return NULL;
-		}
-
-		log_trace2("check");
-		return message;
-	}
 	return NULL;
 }
 
@@ -180,11 +154,6 @@ const char* release_map_remotes(struct ir_remote* old,
 	struct ir_remote* remote;
 	struct ir_ncode* ncode = NULL;
 
-	if (release_remote2 != NULL) {
-		/* should not happen */
-		log_error("release_remote2 still in use");
-		release_remote2 = NULL;
-	}
 	if (release_remote && is_in_remotes(old, release_remote)) {
 		remote = get_ir_remote(new, release_remote->name);
 		if (remote)
