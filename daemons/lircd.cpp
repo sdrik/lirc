@@ -285,7 +285,6 @@ static int peern = 0;
 
 static int daemonized = 0;
 static int allow_simulate = 0;
-static int userelease = 0;
 
 static sig_atomic_t term = 0, hup = 0, alrm = 0;
 static int termsig;
@@ -1741,7 +1740,7 @@ skip:
 
 void input_message(const char* message, const char* remote_name, const char* button_name, int reps, int release)
 {
-	if (!release || userelease)
+	if (!release)
 		broadcast_message(message);
 }
 
@@ -2278,7 +2277,6 @@ static void log_options(void)
 		log_notice("Options: listen address: %s", buff);
 	}
 	log_notice("Options: connect: %s", optvalue("lircd:connect"));
-	log_notice("Options: userelease: %d", userelease);
 	log_notice("Options: effective_user: %s",
 		   optvalue("lircd:effective_user"));
 	log_notice("Options: release_suffix: %s",
@@ -2370,7 +2368,6 @@ int main(int argc, char** argv)
 	if (!parse_peer_connections(opt))
 		return(EXIT_FAILURE);
 	loglevel_opt = (loglevel_t) options_getint("lircd:debug");
-	userelease = options_getboolean("lircd:release");
 	allow_simulate = options_getboolean("lircd:allow-simulate");
 	repeat_max = options_getint("lircd:repeat-max");
 	configfile = options_getstring("lircd:configfile");
