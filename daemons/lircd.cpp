@@ -1751,16 +1751,10 @@ void free_old_remotes(void)
 	struct ir_remote* scan_remotes;
 	struct ir_remote* found;
 	struct ir_ncode* code;
-	const char* release_event;
-	const char* release_remote_name;
-	const char* release_button_name;
 
 	if (get_decoding() == free_remotes)
 		return;
 
-	release_event = release_map_remotes(free_remotes, remotes, &release_remote_name, &release_button_name);
-	if (release_event != NULL)
-		input_message(release_event, release_remote_name, release_button_name, 0, 1);
 	if (last_remote != NULL) {
 		if (is_in_remotes(free_remotes, last_remote)) {
 			log_info("last_remote found");

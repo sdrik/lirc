@@ -42,11 +42,6 @@ void get_release_data(const char** remote_name,
 /** Get time for pending release event if it exists, else a noop. */
 void get_release_time(struct timeval* tv);
 
-const char* release_map_remotes(struct ir_remote* old,
-				struct ir_remote* new_remote,
-				const char**      remote_name,
-				const char**      button_name);
-
 
 #ifdef __cplusplus
 }
