@@ -22,13 +22,13 @@ extern "C" {
 
 /**
  * Set up pending events for given button, including the
- * release_gap. Data is saved to be retrieved using get_release_data().
+ * release_gap.
  */
 void register_input(void);
 
 /**
  * Set up pending release events for given button, including the
- * release_gap.
+ * release_gap. Data is saved to be retrieved using get_release_data().
  */
 void register_button_press(struct ir_remote* remote,
 			   struct ir_ncode*  ncode,
