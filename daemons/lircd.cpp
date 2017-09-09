@@ -1970,21 +1970,6 @@ static int mywaitfordata(uint32_t maxusec)
 				continue;
 			}
 			gettimeofday(&now, NULL);
-			if (timerisset(&release_time) && timercmp(&now, &release_time, >)) {
-				const char* release_message;
-				const char* release_remote_name;
-				const char* release_button_name;
-
-				release_message =
-					trigger_release_event(&release_remote_name,
-							      &release_button_name);
-				if (release_message) {
-					input_message(release_message,
-						      release_remote_name,
-						      release_button_name,
-						      0, 1);
-				}
-			}
 			if (free_remotes != NULL)
 				free_old_remotes();
 			if (maxusec > 0) {

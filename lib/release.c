@@ -115,8 +115,8 @@ const char* check_release_event(const char** remote_name,
 	return NULL;
 }
 
-const char* trigger_release_event(const char** remote_name,
-				  const char** button_name)
+static const char* trigger_release_event(const char** remote_name,
+					 const char** button_name)
 {
 	int len = 0;
 
