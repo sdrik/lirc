@@ -1,0 +1,25 @@
+dist: xenial
+sudo: false
+
+addons:
+  apt:
+    packages:
+      - xsltproc
+      - socat
+      - expect
+
+language: python
+
+python:
+  - "3.5"
+  - "3.6"
+  - "3.7"
+
+before_script:
+  - ./autogen.sh
+
+script:
+  - export PKG_CONFIG_PATH=$(python-config --prefix)/lib/pkgconfig
+  - export PYTHON_CFLAGS="${PYTHON_CFLAGS} $(pkg-config --cflags python-${TRAVIS_PYTHON_VERSION})"
+  - export LD_LIBRARY_PATH=$(python-config --prefix)/lib
+  - ./configure && make && (cd python-pkg && python -c 'from lirc import _client' || true) && python -m unittest python-pkg/tests/test_client.py
